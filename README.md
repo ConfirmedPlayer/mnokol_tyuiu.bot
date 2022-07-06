@@ -1,0 +1,1 @@
+# mnokol_tyuiu.bot
