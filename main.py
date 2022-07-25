@@ -251,6 +251,8 @@ def spam_n_times_a_day(peer_id: int, amount: int):
 
 @logger.catch
 def spam_on_change(peer_id: int):
+    logger.success(f'Spam schedule on change for {peer_id} was started')
+
     group_and_url = sync_get_group(db.get(peer_id).get('group'))
 
     request = requests.get(group_and_url.get('URL'))
