@@ -1,16 +1,10 @@
 from config import admin_user_id
 
 from vkbottle.bot import Blueprint, Message, rules
-import os
 
 
 bp = Blueprint("Admin Commands")
 bp.labeler.auto_rules = [rules.FromPeerRule(admin_user_id)]
-
-
-@bp.on.message(command="exit")
-async def bot_exit(_):
-    os._exit(0)
 
 
 @bp.on.message(text='/eval <code>')
