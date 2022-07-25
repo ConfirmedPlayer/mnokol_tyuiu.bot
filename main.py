@@ -349,7 +349,8 @@ async def show_schedule(message: Message):
         if user := db.get(message.peer_id):
             uploaded_screenshot = await make_screenshot(user.get('URL'),
                                                         user.get('group'))
-            await message.answer(attachment=uploaded_screenshot)
+            await message.answer(attachment=uploaded_screenshot,
+                                 keyboard=GetScheduleKeyboard)
 
 
 @bot.on.message(text='/подписка')
