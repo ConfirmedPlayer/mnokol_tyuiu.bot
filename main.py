@@ -188,7 +188,7 @@ def spam_n_times_a_day(peer_id: int, amount: int):
     match amount:
         case 2:
             while db.get(peer_id).get('subscribed'):
-                time_now = f'{datetime.now(time_zone).hour}:{datetime.now(time_zone).minute}'
+                time_now = datetime.now().strftime('%H:%M')
                 if time_now in two_times_range:
                     group_and_url = sync_get_group(db.get(peer_id).get('group'))
                     uploaded_screenshot = sync_make_screenshot(group_and_url.get('URL'),
@@ -203,7 +203,7 @@ def spam_n_times_a_day(peer_id: int, amount: int):
                 time.sleep(15)
         case 3:
             while db.get(peer_id).get('subscribed'):
-                time_now = f'{datetime.now(time_zone).hour}:{datetime.now(time_zone).minute}'
+                time_now = datetime.now().strftime('%H:%M')
                 if time_now in three_times_range:
                     group_and_url = sync_get_group(db.get(peer_id).get('group'))
                     uploaded_screenshot = sync_make_screenshot(group_and_url.get('URL'),
@@ -218,7 +218,7 @@ def spam_n_times_a_day(peer_id: int, amount: int):
                 time.sleep(15)
         case 4:
             while db.get(peer_id).get('subscribed'):
-                time_now = f'{datetime.now(time_zone).hour}:{datetime.now(time_zone).minute}'
+                time_now = datetime.now().strftime('%H:%M')
                 if time_now in four_times_range:
                     group_and_url = sync_get_group(db.get(peer_id).get('group'))
                     uploaded_screenshot = sync_make_screenshot(group_and_url.get('URL'),
@@ -233,7 +233,7 @@ def spam_n_times_a_day(peer_id: int, amount: int):
                 time.sleep(15)
         case 5:
             while db.get(peer_id).get('subscribed'):
-                time_now = f'{datetime.now(time_zone).hour}:{datetime.now(time_zone).minute}'
+                time_now = datetime.now().strftime('%H:%M')
                 if time_now in five_times_range:
                     group_and_url = sync_get_group(db.get(peer_id).get('group'))
                     uploaded_screenshot = sync_make_screenshot(group_and_url.get('URL'),
