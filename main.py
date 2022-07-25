@@ -70,7 +70,7 @@ async def get_group(raw_group: str):
         group = re.findall(pattern=re.escape(raw_group),
                            string=str(all_groups),
                            flags=re.IGNORECASE)
-        if group == []:
+        if not group:
             return False
         else:
             group_tag = soup.find('option', string=group[0])
