@@ -19,6 +19,7 @@ from pyppeteer import launch
 from pytz import timezone
 from selenium import webdriver
 from selenium.webdriver.common.by import By
+from threading import Thread
 from vk_api import VkApi
 from vk_api.upload import VkUpload
 from vk_api.utils import get_random_id
@@ -51,9 +52,6 @@ bot.labeler.vbml_ignore_case = True
 
 vk_session = VkApi(token=token)
 vk = vk_session.get_api()
-
-
-tasks = []
 
 
 @logger.catch
@@ -153,7 +151,7 @@ def sync_make_screenshot(URL: str, group: str):
 
 
 @logger.catch
-def spam_every_n_hours(peer_id: int, hours: int):
+def send_schedule_every_n_hours(peer_id: int, hours: int):
     logger.success(f'Spam every {hours} hours for {peer_id} was started')
 
     while db.get(peer_id).get('subscribed'):
@@ -169,7 +167,7 @@ def spam_every_n_hours(peer_id: int, hours: int):
 
 
 @logger.catch
-def spam_n_times_a_day(peer_id: int, amount: int):
+def send_schedule_n_times_a_day(peer_id: int, amount: int):
     logger.success(f'Spam {amount} times for {peer_id} was started')
 
     time_zone = timezone('Asia/Yekaterinburg')
@@ -250,7 +248,7 @@ def spam_n_times_a_day(peer_id: int, amount: int):
 
 
 @logger.catch
-def spam_on_change(peer_id: int):
+def send_schedule_on_change(peer_id: int):
     logger.success(f'Spam schedule on change for {peer_id} was started')
 
     group_and_url = sync_get_group(db.get(peer_id).get('group'))
@@ -395,7 +393,9 @@ async def subscribe_to_first_method(message: Message, digit: str):
                         await temp.write(str(db))
 
                     await message.reply('Вы успешно подписались.')
-                    await asyncio.to_thread(spam_every_n_hours, message.peer_id, n)
+                    Thread(target=send_schedule_every_n_hours,
+                           args=(message.peer_id, n),
+                           daemon=True).start()
     else:
         await message.reply('Неверное число.')
 
@@ -456,9 +456,10 @@ async def global_handling(event: GroupTypes.MessageNew):
                                             message='Вы успешно подписались.\nРасписание будет \
                                                 отправляться два раза в день: в 06:00 утра и \
                                                     19:00 вечера.')
-                await asyncio.to_thread(spam_n_times_a_day,
-                                        event.object.message.peer_id,
-                                        db.get(event.object.message.peer_id).get('amount'))
+                Thread(target=send_schedule_n_times_a_day,
+                       args=(event.object.message.peer_id,
+                             db.get(event.object.message.peer_id).get('amount')),
+                       daemon=True).start()
             case 'three_times':
                 db[event.object.message.peer_id]['method'] = 'n_times_a_day'
                 db[event.object.message.peer_id]['amount'] = 3
@@ -472,9 +473,10 @@ async def global_handling(event: GroupTypes.MessageNew):
                                             message='Вы успешно подписались.\nРасписание будет \
                                                 отправляться три раза в день: в 06:00 утра, \
                                                     12:00 дня, и 18:00 вечера.')
-                await asyncio.to_thread(spam_n_times_a_day,
-                                        event.object.message.peer_id,
-                                        db.get(event.object.message.peer_id).get('amount'))
+                Thread(target=send_schedule_n_times_a_day,
+                       args=(event.object.message.peer_id,
+                             db.get(event.object.message.peer_id).get('amount')),
+                       daemon=True).start()
             case 'four_times':
                 db[event.object.message.peer_id]['method'] = 'n_times_a_day'
                 db[event.object.message.peer_id]['amount'] = 4
@@ -488,9 +490,10 @@ async def global_handling(event: GroupTypes.MessageNew):
                                             message='Вы успешно подписались.\nРасписание будет \
                                                 отправляться четыре раза в день: в 06:00 утра, \
                                                     12:00 дня, 16:00 и 20:00 вечера.')
-                await asyncio.to_thread(spam_n_times_a_day,
-                                        event.object.message.peer_id,
-                                        db.get(event.object.message.peer_id).get('amount'))
+                Thread(target=send_schedule_n_times_a_day,
+                       args=(event.object.message.peer_id,
+                             db.get(event.object.message.peer_id).get('amount')),
+                       daemon=True).start()
             case 'five_times':
                 db[event.object.message.peer_id]['method'] = 'n_times_a_day'
                 db[event.object.message.peer_id]['amount'] = 5
@@ -504,9 +507,10 @@ async def global_handling(event: GroupTypes.MessageNew):
                                             message='Вы успешно подписались.\nРасписание будет отправляться \
                                                 пять раз в день: в 06:00 утра, 12:00 дня и 15:00 \
                                                     дня, 18:00 вечера и 21:00 вечера.')
-                await asyncio.to_thread(spam_n_times_a_day,
-                                        event.object.message.peer_id,
-                                        db.get(event.object.message.peer_id).get('amount'))
+                Thread(target=send_schedule_n_times_a_day,
+                       args=(event.object.message.peer_id,
+                             db.get(event.object.message.peer_id).get('amount')),
+                       daemon=True).start()
             case 'on_change':
                 db[event.object.message.peer_id]['method'] = 'on_change'
                 db[event.object.message.peer_id]['subscribed'] = True
@@ -519,7 +523,9 @@ async def global_handling(event: GroupTypes.MessageNew):
                                             message='Вы успешно подписались.\nТеперь вам будет \
                                             отправлено новое расписание при любом его изменении.')
 
-                await asyncio.to_thread(spam_on_change, event.object.message.peer_id)
+                Thread(target=send_schedule_on_change,
+                       args=[event.object.message.peer_id],
+                       daemon=True).start()
             case 'get_schedule':
                 if user := db.get(event.object.message.peer_id) is None:
                     await bot.api.messages.send(random_id=get_random_id(),
@@ -557,8 +563,6 @@ async def bot_joined(message: Message):
 
 
 async def load_tasks_from_db():
-    global tasks
-
     db_peer_ids_keys = list(db.keys())
 
     for key in db_peer_ids_keys:
@@ -569,25 +573,27 @@ async def load_tasks_from_db():
             case 'every_n_hours':
                 peer_id = key
                 hours = user.get('hours')
-                tasks.append(asyncio.create_task(asyncio.to_thread(spam_every_n_hours,
-                                                                   peer_id,
-                                                                   hours)))
+                Thread(target=send_schedule_every_n_hours,
+                       args=(peer_id, hours),
+                       daemon=True).start()
+
             case 'n_times_a_day':
                 peer_id = key
                 amount = user.get('amount')
-                tasks.append(asyncio.create_task(asyncio.to_thread(spam_n_times_a_day,
-                                                                   peer_id,
-                                                                   amount)))
+                Thread(target=send_schedule_n_times_a_day,
+                       args=(peer_id, amount),
+                       daemon=True).start()
+
             case 'on_change':
                 peer_id = key
-                tasks.append(asyncio.create_task(asyncio.to_thread(spam_on_change,
-                                                                   peer_id)))
+                Thread(target=send_schedule_on_change,
+                       args=[peer_id],
+                       daemon=True).start()
 
 
 async def main():
     global db
     global pyppeteer_browser
-    global tasks
 
     try:
         pyppeteer_browser = await launch(args=pyppeteer_args)
@@ -600,10 +606,9 @@ async def main():
 
         db = literal_eval(db)
 
-        tasks.append(asyncio.create_task(load_tasks_from_db()))
-        tasks.append(asyncio.create_task(bot.run_polling()))
+        await load_tasks_from_db()
 
-        await asyncio.gather(*tasks)
+        await bot.run_polling()
     finally:
         await pyppeteer_browser.close()
 
