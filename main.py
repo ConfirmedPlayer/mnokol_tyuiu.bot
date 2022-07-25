@@ -73,7 +73,8 @@ async def get_group(raw_group: str):
         if not group:
             return False
         else:
-            group_tag = soup.find('option', string=group[0])
+            group = group[0]
+            group_tag = soup.find('option', string=group)
             attributes_dict = group_tag.attrs
 
             sid = attributes_dict.get('sid')
