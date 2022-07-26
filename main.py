@@ -418,7 +418,8 @@ async def global_handling(event: GroupTypes.MessageNew):
             case 'every_n_hours':
                 await bot.api.messages.send(random_id=get_random_id(),
                                             peer_id=peer_id,
-                                            message=msg_templates.every_n_hours_method_template)
+                                            message=msg_templates.every_n_hours_method_template,
+                                            keyboard=keyboards.GetScheduleKeyboard)
             case 'n_times':
                 await bot.api.messages.send(random_id=get_random_id(),
                                             peer_id=peer_id,
@@ -434,7 +435,8 @@ async def global_handling(event: GroupTypes.MessageNew):
 
                 await bot.api.messages.send(random_id=get_random_id(),
                                             peer_id=peer_id,
-                                            message=msg_templates.subscribed_to_2_times)
+                                            message=msg_templates.subscribed_to_2_times,
+                                            keyboard=keyboards.GetScheduleKeyboard)
                 Thread(target=send_schedule_n_times_a_day,
                        args=(peer_id, db.get(peer_id).get('amount')),
                        daemon=True).start()
@@ -448,7 +450,8 @@ async def global_handling(event: GroupTypes.MessageNew):
 
                 await bot.api.messages.send(random_id=get_random_id(),
                                             peer_id=peer_id,
-                                            message=msg_templates.subscribed_to_3_times)
+                                            message=msg_templates.subscribed_to_3_times,
+                                            keyboard=keyboards.GetScheduleKeyboard)
                 Thread(target=send_schedule_n_times_a_day,
                        args=(peer_id, db.get(peer_id).get('amount')),
                        daemon=True).start()
@@ -462,7 +465,8 @@ async def global_handling(event: GroupTypes.MessageNew):
 
                 await bot.api.messages.send(random_id=get_random_id(),
                                             peer_id=peer_id,
-                                            message=msg_templates.subscribed_to_4_times)
+                                            message=msg_templates.subscribed_to_4_times,
+                                            keyboard=keyboards.GetScheduleKeyboard)
                 Thread(target=send_schedule_n_times_a_day,
                        args=(peer_id, db.get(peer_id).get('amount')),
                        daemon=True).start()
@@ -476,7 +480,8 @@ async def global_handling(event: GroupTypes.MessageNew):
 
                 await bot.api.messages.send(random_id=get_random_id(),
                                             peer_id=peer_id,
-                                            message=msg_templates.subscribed_to_5_times)
+                                            message=msg_templates.subscribed_to_5_times,
+                                            keyboard=keyboards.GetScheduleKeyboard)
                 Thread(target=send_schedule_n_times_a_day,
                        args=(peer_id, db.get(peer_id).get('amount')),
                        daemon=True).start()
@@ -489,7 +494,8 @@ async def global_handling(event: GroupTypes.MessageNew):
 
                 await bot.api.messages.send(random_id=get_random_id(),
                                             peer_id=peer_id,
-                                            message=msg_templates.on_change_method_subscribed)
+                                            message=msg_templates.on_change_method_subscribed,
+                                            keyboard=keyboards.GetScheduleKeyboard)
 
                 Thread(target=send_schedule_on_change,
                        args=[peer_id],
