@@ -3,41 +3,16 @@ import os
 
 token = os.getenv('MNOKOL_BOT_TOKEN')
 
+
+api_link = 'https://temnomor.ru/api/groups?group={group}&sid={sid}&gr={gr}'
+
+
 group_id = 212422399
 admin_user_id = 641064938 # Admin commands will work only for ID provided
 message_send_url = 'https://api.vk.com/method/messages.send?access_token={token}&v=5.130&peer_id={peer_id}&attachment={attachment}&random_id={random_id}'
 
 
 schedule_menu_url = 'http://mnokol.tyuiu.ru/rtsp/index2.php'
-
-
-start_message = '''
-
-Привет! Я — бот для получения расписания. С моей помощью можно легко и просто получать расписание пар для своей группы.
-Также бот владеет базой данных учителей МПК ТИУ. Зная фамилию преподавателя, можно узнать его полное ФИО.
-Команда: /преп <фамилия>
-
-
-Первоначальная настройка:
-
-Добавьте группу с помощью команды: /группа <название>
-Пример: /группа пкст-20-(9)-2
-
-
-После, отправьте команду:
-/подписка
-Настроив подписку, вы сможете получать расписание по времени или сразу как его изменили.
-
-'''
-
-on_invite_message = '''
-
-Спасибо, что пригласили меня в беседу!
-
-Для более корректной работы бота рекомендуется дать права администратора или доступ к переписке.
-Это требуется для того, чтобы бот беспрепятственно получал доступ к командам.
-
-'''
 
 
 assert group_id > 0
