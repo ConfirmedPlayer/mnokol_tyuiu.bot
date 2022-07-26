@@ -1,4 +1,4 @@
-from config import start_message
+from additional.message_templates import start_message
 from additional.teachers_db import teachers
 
 from vkbottle.bot import Blueprint, Message
