@@ -23,7 +23,7 @@ async def get_teacher_full_name(message: Message, teacher: str):
     regex = rf'(?<=<tr>\s<td width=\"\d\d\d\">){teacher}(.*?)(?=</td>)'
     matched_regex = re.findall(pattern=regex, string=teachers, flags=re.IGNORECASE)
     all_results = ''
-    if matched_regex is not None:
+    if matched_regex:
         for teacher_next_name in matched_regex:
             all_results += teacher.capitalize() + teacher_next_name + '\n\n'
 
