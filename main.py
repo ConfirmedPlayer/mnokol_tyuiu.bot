@@ -1,15 +1,7 @@
-from additional.chrome_options import (selenium_args,
-                                       pyppeteer_args,
-                                       pyppeteer_screenshot_options,
-                                       pyppeteer_goto_options)
-from additional.keyboards import SpamVariantsKeyboard, AmountVariantsKeyboard, GetScheduleKeyboard
-from config import (token,
-                    schedule_menu_url,
-                    start_message,
-                    on_invite_message,
-                    message_send_url,
-                    admin_user_id,
-                    group_id)
+import additional.chrome_options as chrome_options
+import additional.keyboards as keyboards
+import additional.message_templates as msg_templates
+import config
 
 from ast import literal_eval
 from bs4 import BeautifulSoup
@@ -37,20 +29,19 @@ import time
 logger.remove()
 logger.add('logs.log', format='{time} {level} {message}', level='DEBUG')
 logger_format = (
-    "<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | "
-    "<level>{level: <8}</level> | "
-    "<cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> | "
-    "{extra[ip]} {extra[user]} - <level>{message}</level>"
+    '<green>{time}</green> | '
+    '<level>{level: <8}</level> | '
+    '<cyan>{name}</cyan>:<cyan>{function}</cyan>'
+    '<level>{message}</level>'
 )
-logger.configure(extra={"ip": "", "user": ""})
 logger.add(sys.stderr, format=logger_format, level='INFO')
 
 
-bot = Bot(token)
+bot = Bot(token=config.token)
 bot.labeler.vbml_ignore_case = True
 
 
-vk_session = VkApi(token=token)
+vk_session = VkApi(token=config.token)
 vk = vk_session.get_api()
 
 
@@ -58,7 +49,7 @@ vk = vk_session.get_api()
 async def get_group(raw_group: str):
     try:
         page = await pyppeteer_browser.newPage()
-        await page.goto(schedule_menu_url)
+        await page.goto(config.schedule_menu_url)
         html = await page.content()
 
         soup = BeautifulSoup(html, 'lxml')
@@ -69,7 +60,7 @@ async def get_group(raw_group: str):
                            string=str(all_groups),
                            flags=re.IGNORECASE)
         if not group:
-            return False
+            return
         else:
             group = group[0]
             group_tag = soup.find('option', string=group)
@@ -79,24 +70,26 @@ async def get_group(raw_group: str):
             gr = attributes_dict.get('value')
 
             if any((sid, gr)) is None:
-                return False
+                return
             else:
-                schedule_url = f'https://temnomor.ru/api/groups?group={group}&sid={sid}&gr={gr}'
-                return {'URL': schedule_url, 'group': group}
+                schedule_url = config.api_link.format(group=group,
+                                                      sid=sid,
+                                                      gr=gr)
+                return {'URL': schedule_url,
+                        'group': group}
     finally:
         await page.close()
 
 
 @logger.catch
 async def make_screenshot(URL: str, group: str):
-    local_screenshot_options = pyppeteer_screenshot_options
+    local_screenshot_options = chrome_options.pyppeteer_screenshot_options
 
     group_filename = group.strip('()') + '.png'
     local_screenshot_options.update(path=group_filename)
-
     try:
         page = await pyppeteer_browser.newPage()
-        await page.goto(URL, options=pyppeteer_goto_options)
+        await page.goto(URL, options=chrome_options.pyppeteer_goto_options)
         await page.screenshot(options=local_screenshot_options)
         return await PhotoMessageUploader(bot.api).upload(group_filename)
     finally:
@@ -106,8 +99,8 @@ async def make_screenshot(URL: str, group: str):
 @logger.catch
 def sync_get_group(raw_group: str):
     try:
-        browser = webdriver.Chrome(options=selenium_args)
-        browser.get(schedule_menu_url)
+        browser = webdriver.Chrome(options=chrome_options.selenium_args)
+        browser.get(config.schedule_menu_url)
         html = browser.page_source
 
         soup = BeautifulSoup(html, 'lxml')
@@ -123,8 +116,11 @@ def sync_get_group(raw_group: str):
         sid = attributes_dict.get('sid')
         gr = attributes_dict.get('value')
 
-        schedule_url = f'https://temnomor.ru/api/groups?group={group}&sid={sid}&gr={gr}'
-        return {'URL': schedule_url, 'group': group}
+        schedule_url = config.api_link.format(group=group,
+                                              sid=sid,
+                                              gr=gr)
+        return {'URL': schedule_url,
+                'group': group}
     finally:
         browser.quit()
 
@@ -133,7 +129,7 @@ def sync_get_group(raw_group: str):
 def sync_make_screenshot(URL: str, group: str):
     group_filename = group.strip('()') + '.png'
     try:
-        browser = webdriver.Chrome(options=selenium_args)
+        browser = webdriver.Chrome(options=chrome_options.selenium_args)
 
         S = lambda x: browser.execute_script('return document.body.parentNode.scroll' + x) # noqa
 
@@ -152,23 +148,23 @@ def sync_make_screenshot(URL: str, group: str):
 
 @logger.catch
 def send_schedule_every_n_hours(peer_id: int, hours: int):
-    logger.success(f'Spam every {hours} hours for {peer_id} was started')
+    logger.success(f'Send schedule every {hours} hours for {peer_id} was started')
 
     while db.get(peer_id).get('subscribed'):
         group_and_url = sync_get_group(db.get(peer_id).get('group'))
         uploaded_screenshot = sync_make_screenshot(group_and_url.get('URL'),
                                                    group_and_url.get('group'))
 
-        requests.get(message_send_url.format(token=token,
-                                             peer_id=peer_id,
-                                             attachment=uploaded_screenshot,
-                                             random_id=get_random_id()))
+        requests.get(config.message_send_url.format(token=config.token,
+                                                    peer_id=peer_id,
+                                                    attachment=uploaded_screenshot,
+                                                    random_id=get_random_id()))
         time.sleep(hours * 3600)
 
 
 @logger.catch
 def send_schedule_n_times_a_day(peer_id: int, amount: int):
-    logger.success(f'Spam {amount} times for {peer_id} was started')
+    logger.success(f'Send schedule {amount} times for {peer_id} was started')
 
     time_zone = timezone('Asia/Yekaterinburg')
 
@@ -192,11 +188,11 @@ def send_schedule_n_times_a_day(peer_id: int, amount: int):
                     group_and_url = sync_get_group(db.get(peer_id).get('group'))
                     uploaded_screenshot = sync_make_screenshot(group_and_url.get('URL'),
                                                                group_and_url.get('group'))
-                    requests.get(message_send_url.format(token=token,
-                                                         peer_id=peer_id,
-                                                         attachment=uploaded_screenshot,
-                                                         random_id=get_random_id()) +
-                                 f'&message={time_now}')
+                    requests.get(config.message_send_url.format(token=config.token,
+                                                                peer_id=peer_id,
+                                                                attachment=uploaded_screenshot,
+                                                                random_id=get_random_id())
+                                 + f'&message={time_now}')
                     time.sleep(18000)
 
                 time.sleep(15)
@@ -207,11 +203,11 @@ def send_schedule_n_times_a_day(peer_id: int, amount: int):
                     group_and_url = sync_get_group(db.get(peer_id).get('group'))
                     uploaded_screenshot = sync_make_screenshot(group_and_url.get('URL'),
                                                                group_and_url.get('group'))
-                    requests.get(message_send_url.format(token=token,
-                                                         peer_id=peer_id,
-                                                         attachment=uploaded_screenshot,
-                                                         random_id=get_random_id()) +
-                                 f'&message={time_now}')
+                    requests.get(config.message_send_url.format(token=config.token,
+                                                                peer_id=peer_id,
+                                                                attachment=uploaded_screenshot,
+                                                                random_id=get_random_id())
+                                 + f'&message={time_now}')
                     time.sleep(14000)
 
                 time.sleep(15)
@@ -222,11 +218,11 @@ def send_schedule_n_times_a_day(peer_id: int, amount: int):
                     group_and_url = sync_get_group(db.get(peer_id).get('group'))
                     uploaded_screenshot = sync_make_screenshot(group_and_url.get('URL'),
                                                                group_and_url.get('group'))
-                    requests.get(message_send_url.format(token=token,
-                                                         peer_id=peer_id,
-                                                         attachment=uploaded_screenshot,
-                                                         random_id=get_random_id()) +
-                                 f'&message={time_now}')
+                    requests.get(config.message_send_url.format(token=config.token,
+                                                                peer_id=peer_id,
+                                                                attachment=uploaded_screenshot,
+                                                                random_id=get_random_id())
+                                 + f'&message={time_now}')
                     time.sleep(10000)
 
                 time.sleep(15)
@@ -237,11 +233,11 @@ def send_schedule_n_times_a_day(peer_id: int, amount: int):
                     group_and_url = sync_get_group(db.get(peer_id).get('group'))
                     uploaded_screenshot = sync_make_screenshot(group_and_url.get('URL'),
                                                                group_and_url.get('group'))
-                    requests.get(message_send_url.format(token=token,
-                                                         peer_id=peer_id,
-                                                         attachment=uploaded_screenshot,
-                                                         random_id=get_random_id()) +
-                                 f'&message={time_now}')
+                    requests.get(config.message_send_url.format(token=config.token,
+                                                                peer_id=peer_id,
+                                                                attachment=uploaded_screenshot,
+                                                                random_id=get_random_id())
+                                 + f'&message={time_now}')
                     time.sleep(7000)
 
                 time.sleep(15)
@@ -249,7 +245,7 @@ def send_schedule_n_times_a_day(peer_id: int, amount: int):
 
 @logger.catch
 def send_schedule_on_change(peer_id: int):
-    logger.success(f'Spam schedule on change for {peer_id} was started')
+    logger.success(f'Send schedule on change for {peer_id} was started')
 
     group_and_url = sync_get_group(db.get(peer_id).get('group'))
 
@@ -263,11 +259,11 @@ def send_schedule_on_change(peer_id: int):
             first_html = new_html
             uploaded_screenshot = sync_make_screenshot(group_and_url.get('URL'),
                                                        group_and_url.get('group'))
-            requests.get(message_send_url.format(token=token,
-                                                 peer_id=peer_id,
-                                                 attachment=uploaded_screenshot,
-                                                 random_id=get_random_id()) +
-                         '&message=Изменение в расписании')
+            requests.get(config.message_send_url.format(token=config.token,
+                                                        peer_id=peer_id,
+                                                        attachment=uploaded_screenshot,
+                                                        random_id=get_random_id())
+                         + '&message=Изменение в расписании')
             time.sleep(1000)
         else:
             time.sleep(1000)
@@ -277,15 +273,12 @@ def send_schedule_on_change(peer_id: int):
 async def set_group_public(message: Message, raw_group: str):
     global db
 
-    if len(raw_group) < 9:
-        await message.reply('Группа не найдена. \
-            Пожалуйста, проверьте написание и повторите попытку')
+    if len(raw_group) not in range(10, 17):
+        await message.reply(msg_templates.group_not_found_message)
 
     group_and_url = await get_group(raw_group)
     if not isinstance(group_and_url, dict):
-
-        await message.reply('Группа не найдена. \
-            Пожалуйста, проверьте написание и повторите попытку')
+        await message.reply(msg_templates.group_not_found_message)
     else:
         group = group_and_url.get('group')
 
@@ -299,24 +292,22 @@ async def set_group_public(message: Message, raw_group: str):
         async with aiofiles.open('DB.txt', 'w', encoding='UTF-8') as temp:
             await temp.write(str(db))
 
-        await message.reply(f'Данной беседе присвоена группа: "{group}". Это значит, что \
-            в этом диалоге бот будет выдавать расписание для этой группы.')
+        await message.reply(msg_templates.set_group_chat_success.format(group=group))
 
-        await message.answer('Теперь вы можете получать расписание с помощью клавиатуры бота \
-            под полем ввода сообщения.\n\nНо для экономии времени и быстроты получения \
-                расписания, рекомендуем выбрать подписку. Отправьте команду:\n/подписка\n \
-                    для получения дальнейших инструкций.', keyboard=GetScheduleKeyboard)
+        await message.answer(msg_templates.set_group_success2,
+                             keyboard=keyboards.GetScheduleKeyboard)
 
 
 @bot.on.private_message(text='/группа <raw_group>')
 async def set_group_private(message: Message, raw_group):
     global db
 
+    if len(raw_group) not in range(10, 17):
+        await message.reply(msg_templates.group_not_found_message)
+
     group_and_url = await get_group(raw_group)
     if not isinstance(group_and_url, dict):
-
-        await message.reply('Группа не найдена. \
-            Пожалуйста, проверьте написание и повторите попытку')
+        await message.reply(msg_templates.group_not_found_message)
     else:
         group = group_and_url.get('group')
 
@@ -330,41 +321,34 @@ async def set_group_private(message: Message, raw_group):
         async with aiofiles.open('DB.txt', 'w', encoding='UTF-8') as temp:
             await temp.write(str(db))
 
-        await message.reply(f'Диалогу с пользователем @id{message.peer_id} присвоена \
-            группа: "{group}". Это значит, что в этом диалоге бот будет \
-                выдавать расписание для этой группы.')
-
-        await message.answer('Теперь вы можете получать расписание с помощью клавиатуры бота \
-            под полем ввода сообщения.\n\nНо для экономии времени и быстроты получения \
-                расписания, рекомендуем выбрать подписку. Отправьте команду:\n/подписка\n \
-                    для получения дальнейших инструкций.', keyboard=GetScheduleKeyboard)
+        await message.reply(msg_templates.set_group_private_success.format(user_id=message.peer_id,
+                                                                           group=group))
+        await message.answer(msg_templates.set_group_success2,
+                             keyboard=keyboards.GetScheduleKeyboard)
 
 
 @bot.on.message(text='/расписание')
 async def show_schedule(message: Message):
     if user := db.get(message.peer_id) is None:
-        await message.reply('Ошибка. Сначала добавьте группу с помощью команды: \
-            \n/группа <название>\n\nПример: /группа пкст-20-(9)-2')
+        await message.reply(msg_templates.group_not_set_message)
     else:
         if user := db.get(message.peer_id):
             uploaded_screenshot = await make_screenshot(user.get('URL'),
                                                         user.get('group'))
             await message.answer(attachment=uploaded_screenshot,
-                                 keyboard=GetScheduleKeyboard)
+                                 keyboard=keyboards.GetScheduleKeyboard)
 
 
 @bot.on.message(text='/подписка')
 async def subscription_types(message: Message):
     if message.peer_id in db.keys():
         if not db.get(message.peer_id).get('subscribed'):
-            await message.reply('Пожалуйста, выберите тип рассылки.',
-                                keyboard=SpamVariantsKeyboard)
+            await message.reply(msg_templates.choose_subscription_message,
+                                keyboard=keyboards.SpamVariantsKeyboard)
         else:
-            await message.reply('Вы уже подписаны на рассылку.\nОтписаться можно командой: \
-                /отписаться')
+            await message.reply(msg_templates.already_subscribed_message)
     else:
-        await message.reply('Ошибка. Сначала добавьте группу с помощью команды: \
-            \n/группа <название>\n\nПример: /группа пкст-20-(9)-2')
+        await message.reply(msg_templates.group_not_set_message)
 
 
 @bot.on.message(text='/рассылка <digit>')
@@ -375,15 +359,13 @@ async def subscribe_to_first_method(message: Message, digit: str):
         n = int(digit)
 
         if not 100 > n > 0:
-            await message.reply('Число должно быть в диапазоне от 1 до 99.')
+            await message.reply(msg_templates.incorrect_number_range)
         else:
             if message.peer_id not in db.keys():
-                await message.reply('Ошибка. Сначала добавьте группу с помощью команды:\n \
-                    /группа <название>\n\nПример: /группа пкст-20-(9)-2')
+                await message.reply(msg_templates.group_not_set_message)
             else:
                 if db.get(message.peer_id).get('subscribed'):
-                    await message.reply('Вы уже подписаны на рассылку.\nОтписаться можно командой: \
-                        /отписаться')
+                    await message.reply(msg_templates.already_subscribed_message)
                 else:
                     db[message.peer_id]['method'] = 'every_n_hours'
                     db[message.peer_id]['hours'] = n
@@ -392,12 +374,12 @@ async def subscribe_to_first_method(message: Message, digit: str):
                     async with aiofiles.open('DB.txt', 'w', encoding='UTF-8') as temp:
                         await temp.write(str(db))
 
-                    await message.reply('Вы успешно подписались.')
+                    await message.reply(msg_templates.subscription_successful)
                     Thread(target=send_schedule_every_n_hours,
                            args=(message.peer_id, n),
                            daemon=True).start()
     else:
-        await message.reply('Неверное число.')
+        await message.reply(msg_templates.incorrect_number)
 
 
 @bot.on.message(text='/отписаться')
@@ -409,11 +391,10 @@ async def unsubscribe(message: Message):
     db = literal_eval(db)
 
     if message.peer_id not in db.keys():
-        await message.reply('Ошибка. Сначала добавьте группу с помощью команды:\n \
-                    /группа <название>\n\nПример: /группа пкст-20-(9)-2')
+        await message.reply(msg_templates.group_not_set_message)
     else:
         if db.get(message.peer_id).get('subscribed') is None:
-            await message.reply('Вы не подписаны на рассылку.')
+            await message.reply(msg_templates.not_subscribed_error)
         else:
             for key in list(db[message.peer_id].keys()):
                 if key not in ('group', 'URL'):
@@ -422,132 +403,118 @@ async def unsubscribe(message: Message):
             async with aiofiles.open('DB.txt', 'w', encoding='UTF-8') as temp:
                 await temp.write(str(db))
 
-            await message.reply('Вы успешно отписались от рассылки.')
+            await message.reply(msg_templates.unsubscription_successful)
 
 
 @bot.on.raw_event(GroupEventType.MESSAGE_NEW, GroupTypes.MessageNew)
 async def global_handling(event: GroupTypes.MessageNew):
-    if event.object.message.payload:
-        payload = literal_eval(event.object.message.payload)
+    if payload := event.object.message.payload:
+        payload = literal_eval(payload)
         command = payload['command']
+
+        peer_id = event.object.message.peer_id
 
         match command:
             case 'every_n_hours':
                 await bot.api.messages.send(random_id=get_random_id(),
-                                            peer_id=event.object.message.peer_id,
-                                            message='Пожалуйста, отправьте команду \
-                                                /рассылка <число>\n\nПример: /рассылка 5 \
-                                                    \nЗначит, рассылка каждые 5 часов.')
+                                            peer_id=peer_id,
+                                            message=msg_templates.every_n_hours_method_template)
             case 'n_times':
                 await bot.api.messages.send(random_id=get_random_id(),
-                                            peer_id=event.object.message.peer_id,
-                                            message='Выберите вариант рассылки.',
-                                            keyboard=AmountVariantsKeyboard)
+                                            peer_id=peer_id,
+                                            message=msg_templates.choose_subscription_message,
+                                            keyboard=keyboards.AmountVariantsKeyboard)
             case 'two_times':
-                db[event.object.message.peer_id]['method'] = 'n_times_a_day'
-                db[event.object.message.peer_id]['amount'] = 2
-                db[event.object.message.peer_id]['subscribed'] = True
+                db[peer_id]['method'] = 'n_times_a_day'
+                db[peer_id]['amount'] = 2
+                db[peer_id]['subscribed'] = True
 
                 async with aiofiles.open('DB.txt', 'w', encoding='UTF-8') as temp:
                     await temp.write(str(db))
 
                 await bot.api.messages.send(random_id=get_random_id(),
-                                            peer_id=event.object.message.peer_id,
-                                            message='Вы успешно подписались.\nРасписание будет \
-                                                отправляться два раза в день: в 06:00 утра и \
-                                                    19:00 вечера.')
+                                            peer_id=peer_id,
+                                            message=msg_templates.subscribed_to_2_times)
                 Thread(target=send_schedule_n_times_a_day,
-                       args=(event.object.message.peer_id,
-                             db.get(event.object.message.peer_id).get('amount')),
+                       args=(peer_id, db.get(peer_id).get('amount')),
                        daemon=True).start()
             case 'three_times':
-                db[event.object.message.peer_id]['method'] = 'n_times_a_day'
-                db[event.object.message.peer_id]['amount'] = 3
-                db[event.object.message.peer_id]['subscribed'] = True
+                db[peer_id]['method'] = 'n_times_a_day'
+                db[peer_id]['amount'] = 3
+                db[peer_id]['subscribed'] = True
 
                 async with aiofiles.open('DB.txt', 'w', encoding='UTF-8') as temp:
                     await temp.write(str(db))
 
                 await bot.api.messages.send(random_id=get_random_id(),
-                                            peer_id=event.object.message.peer_id,
-                                            message='Вы успешно подписались.\nРасписание будет \
-                                                отправляться три раза в день: в 06:00 утра, \
-                                                    12:00 дня, и 18:00 вечера.')
+                                            peer_id=peer_id,
+                                            message=msg_templates.subscribed_to_3_times)
                 Thread(target=send_schedule_n_times_a_day,
-                       args=(event.object.message.peer_id,
-                             db.get(event.object.message.peer_id).get('amount')),
+                       args=(peer_id, db.get(peer_id).get('amount')),
                        daemon=True).start()
             case 'four_times':
-                db[event.object.message.peer_id]['method'] = 'n_times_a_day'
-                db[event.object.message.peer_id]['amount'] = 4
-                db[event.object.message.peer_id]['subscribed'] = True
+                db[peer_id]['method'] = 'n_times_a_day'
+                db[peer_id]['amount'] = 4
+                db[peer_id]['subscribed'] = True
 
                 async with aiofiles.open('DB.txt', 'w', encoding='UTF-8') as temp:
                     await temp.write(str(db))
 
                 await bot.api.messages.send(random_id=get_random_id(),
-                                            peer_id=event.object.message.peer_id,
-                                            message='Вы успешно подписались.\nРасписание будет \
-                                                отправляться четыре раза в день: в 06:00 утра, \
-                                                    12:00 дня, 16:00 и 20:00 вечера.')
+                                            peer_id=peer_id,
+                                            message=msg_templates.subscribed_to_4_times)
                 Thread(target=send_schedule_n_times_a_day,
-                       args=(event.object.message.peer_id,
-                             db.get(event.object.message.peer_id).get('amount')),
+                       args=(peer_id, db.get(peer_id).get('amount')),
                        daemon=True).start()
             case 'five_times':
-                db[event.object.message.peer_id]['method'] = 'n_times_a_day'
-                db[event.object.message.peer_id]['amount'] = 5
-                db[event.object.message.peer_id]['subscribed'] = True
+                db[peer_id]['method'] = 'n_times_a_day'
+                db[peer_id]['amount'] = 5
+                db[peer_id]['subscribed'] = True
 
                 async with aiofiles.open('DB.txt', 'w', encoding='UTF-8') as temp:
                     await temp.write(str(db))
 
                 await bot.api.messages.send(random_id=get_random_id(),
-                                            peer_id=event.object.message.peer_id,
-                                            message='Вы успешно подписались.\nРасписание будет отправляться \
-                                                пять раз в день: в 06:00 утра, 12:00 дня и 15:00 \
-                                                    дня, 18:00 вечера и 21:00 вечера.')
+                                            peer_id=peer_id,
+                                            message=msg_templates.subscribed_to_5_times)
                 Thread(target=send_schedule_n_times_a_day,
-                       args=(event.object.message.peer_id,
-                             db.get(event.object.message.peer_id).get('amount')),
+                       args=(peer_id, db.get(peer_id).get('amount')),
                        daemon=True).start()
             case 'on_change':
-                db[event.object.message.peer_id]['method'] = 'on_change'
-                db[event.object.message.peer_id]['subscribed'] = True
+                db[peer_id]['method'] = 'on_change'
+                db[peer_id]['subscribed'] = True
 
                 async with aiofiles.open('DB.txt', 'w', encoding='UTF-8') as temp:
                     await temp.write(str(db))
 
                 await bot.api.messages.send(random_id=get_random_id(),
-                                            peer_id=event.object.message.peer_id,
-                                            message='Вы успешно подписались.\nТеперь вам будет \
-                                            отправлено новое расписание при любом его изменении.')
+                                            peer_id=peer_id,
+                                            message=msg_templates.on_change_method_subscribed)
 
                 Thread(target=send_schedule_on_change,
-                       args=[event.object.message.peer_id],
+                       args=[peer_id],
                        daemon=True).start()
             case 'get_schedule':
-                if user := db.get(event.object.message.peer_id) is None:
+                if user := db.get(peer_id) is None:
                     await bot.api.messages.send(random_id=get_random_id(),
-                                                peer_id=event.object.message.peer_id,
-                                                message='Ошибка. Сначала добавьте группу с помощью команды: \
-                                            \n/группа <название>\n\nПример: /группа пкст-20-(9)-2')
+                                                peer_id=peer_id,
+                                                message=msg_templates.group_not_set_message)
                 else:
-                    if user := db.get(event.object.message.peer_id):
+                    if user := db.get(peer_id):
                         uploaded_screenshot = await make_screenshot(user.get('URL'),
                                                                     user.get('group'))
                         await bot.api.messages.send(random_id=get_random_id(),
-                                                    peer_id=event.object.message.peer_id,
+                                                    peer_id=peer_id,
                                                     attachment=uploaded_screenshot,
-                                                    keyboard=GetScheduleKeyboard)
+                                                    keyboard=keyboards.GetScheduleKeyboard)
 
 
 @bot.on.chat_message(rules.ChatActionRule("chat_invite_user"))
 async def bot_joined(message: Message):
-    if message.action.member_id == -group_id:
+    if message.action.member_id == -config.group_id:
         await bot.api.messages.send(random_id=get_random_id(),
                                     peer_id=message.peer_id,
-                                    message=start_message)
+                                    message=msg_templates.start_message)
 
         screenshot = await PhotoMessageUploader(bot.api).upload('additional/media/give_rights.png')
 
@@ -555,11 +522,11 @@ async def bot_joined(message: Message):
         await bot.api.messages.send(random_id=get_random_id(),
                                     peer_id=message.peer_id,
                                     attachment=screenshot,
-                                    message=on_invite_message)
+                                    message=msg_templates.on_invite_message)
 
         await bot.api.messages.send(random_id=get_random_id(),
-                                    user_id=admin_user_id,
-                                    message=f'Бот был добавлен в беседу {message}')
+                                    user_id=config.admin_user_id,
+                                    message=msg_templates.bot_was_added_admin_log.format(message))
 
 
 async def load_tasks_from_db():
@@ -596,14 +563,13 @@ async def main():
     global pyppeteer_browser
 
     try:
-        pyppeteer_browser = await launch(args=pyppeteer_args)
+        pyppeteer_browser = await launch(args=chrome_options.pyppeteer_args)
 
         for bp in load_blueprints_from_package('blueprints'):
             bp.load(bot)
 
         async with aiofiles.open('DB.txt', 'r', encoding='UTF-8') as temp:
             db = await temp.read()
-
         db = literal_eval(db)
 
         await load_tasks_from_db()
