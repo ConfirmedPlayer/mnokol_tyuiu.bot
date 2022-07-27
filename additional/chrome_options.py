@@ -42,7 +42,9 @@ pyppeteer_options = {'executablePath': '/usr/bin/google-chrome',
                               '--no-pings',
                               '--no-zygote',
                               '--password-store=basic',
-                              '--use-mock-keychain']}
+                              '--use-mock-keychain'],
+
+                     'userDataDir': './temp'}
 
 
 pyppeteer_screenshot_options = {
