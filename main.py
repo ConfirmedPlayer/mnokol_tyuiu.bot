@@ -98,8 +98,7 @@ async def make_screenshot(URL: str, group: str):
 
 @logger.catch
 def sync_get_group(raw_group: str):
-    try:
-        browser = webdriver.Chrome(options=chrome_options.selenium_args)
+    with webdriver.Chrome(options=chrome_options.selenium_args) as browser:
         browser.get(config.schedule_menu_url)
         html = browser.page_source
 
@@ -121,16 +120,12 @@ def sync_get_group(raw_group: str):
                                               gr=gr)
         return {'URL': schedule_url,
                 'group': group}
-    finally:
-        browser.quit()
 
 
 @logger.catch
 def sync_make_screenshot(URL: str, group: str):
     group_filename = group.strip('()') + '.png'
-    try:
-        browser = webdriver.Chrome(options=chrome_options.selenium_args)
-
+    with webdriver.Chrome(options=chrome_options.selenium_args) as browser:
         S = lambda x: browser.execute_script('return document.body.parentNode.scroll' + x) # noqa
 
         browser.get(URL)
@@ -142,8 +137,6 @@ def sync_make_screenshot(URL: str, group: str):
         photo_obj = upload.photo_messages(group_filename)[0]
 
         return 'photo{owner_id}_{id}_{access_key}'.format(**photo_obj)
-    finally:
-        browser.quit()
 
 
 @logger.catch
@@ -569,7 +562,7 @@ async def main():
     global pyppeteer_browser
 
     try:
-        pyppeteer_browser = await launch(args=chrome_options.pyppeteer_args)
+        pyppeteer_browser = await launch(options=chrome_options.pyppeteer_options)
 
         for bp in load_blueprints_from_package('blueprints'):
             bp.load(bot)
