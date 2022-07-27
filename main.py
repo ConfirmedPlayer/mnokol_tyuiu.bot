@@ -268,6 +268,7 @@ async def set_group_public(message: Message, raw_group: str):
 
     if len(raw_group) not in range(10, 17):
         await message.reply(msg_templates.group_not_found_message)
+        return
 
     group_and_url = await get_group(raw_group)
     if not isinstance(group_and_url, dict):
@@ -297,6 +298,7 @@ async def set_group_private(message: Message, raw_group):
 
     if len(raw_group) not in range(10, 17):
         await message.reply(msg_templates.group_not_found_message)
+        return
 
     group_and_url = await get_group(raw_group)
     if not isinstance(group_and_url, dict):
