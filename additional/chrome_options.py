@@ -10,6 +10,7 @@ selenium_args.add_experimental_option('excludeSwitches', ['enable-logging'])
 
 
 pyppeteer_options = {'executablePath': '/usr/bin/google-chrome',
+                     'userDataDir': './temp',
                      'args': ['--no-sandbox',
                               '--disable-setuid-sandbox',
                               '--autoplay-policy=user-gesture-required',
@@ -42,9 +43,7 @@ pyppeteer_options = {'executablePath': '/usr/bin/google-chrome',
                               '--no-pings',
                               '--no-zygote',
                               '--password-store=basic',
-                              '--use-mock-keychain'],
-
-                     'userDataDir': './temp'}
+                              '--use-mock-keychain']}
 
 
 pyppeteer_screenshot_options = {
