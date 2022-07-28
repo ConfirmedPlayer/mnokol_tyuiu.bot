@@ -248,7 +248,7 @@ def send_schedule_on_change(peer_id: int):
     while db.get(peer_id).get('subscribed'):
         request = requests.get(group_and_url.get('URL'))
         new_html = r''.join(request.text)
-        if first_html != new_html and 'lenta_m' in new_html:
+        if first_html != new_html:
             first_html = new_html
             uploaded_screenshot = sync_make_screenshot(group_and_url.get('URL'),
                                                        group_and_url.get('group'))
