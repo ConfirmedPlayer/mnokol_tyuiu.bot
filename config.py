@@ -15,4 +15,7 @@ message_send_url = 'https://api.vk.com/method/messages.send?access_token={token}
 schedule_menu_url = 'http://mnokol.tyuiu.ru/rtsp/index2.php'
 
 
+chrome_path = '/usr/bin/google-chrome'
+
+
 assert group_id > 0

@@ -1,4 +1,5 @@
 from selenium.webdriver import ChromeOptions
+from config import chrome_path
 
 
 selenium_args = ChromeOptions()
@@ -9,7 +10,7 @@ selenium_args.add_argument('--hide-scrollbars')
 selenium_args.add_experimental_option('excludeSwitches', ['enable-logging'])
 
 
-pyppeteer_options = {'executablePath': '/usr/bin/google-chrome',
+pyppeteer_options = {'executablePath': chrome_path,
                      'userDataDir': './temp',
                      'args': ['--no-sandbox',
                               '--disable-setuid-sandbox',
