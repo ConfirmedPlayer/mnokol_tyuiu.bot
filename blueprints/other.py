@@ -29,4 +29,4 @@ async def get_teacher_full_name(message: Message, teacher: str):
 
         await message.reply(all_results)
     else:
-        await message.reply('Учитель не найден.\nВозможно, его нет в базе ТИУ')
+        await message.reply('Преподаватель не найден.\nВозможно, его нет в базе ТИУ.')

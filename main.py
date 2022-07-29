@@ -1,6 +1,7 @@
 import additional.chrome_options as chrome_options
 import additional.keyboards as keyboards
 import additional.message_templates as msg_templates
+from blueprints import bps
 import config
 
 from ast import literal_eval
@@ -15,7 +16,7 @@ from threading import Thread
 from vk_api import VkApi
 from vk_api.upload import VkUpload
 from vk_api.utils import get_random_id
-from vkbottle import GroupEventType, GroupTypes, load_blueprints_from_package
+from vkbottle import GroupEventType, GroupTypes, VKAPIError
 from vkbottle.bot import Bot, Message, rules
 from vkbottle.tools import PhotoMessageUploader
 import aiofiles
@@ -29,9 +30,8 @@ import time
 logger.remove()
 logger.add('logs.log', format='{time} {level} {message}', level='DEBUG')
 logger_format = (
-    '<green>{time}</green> | '
-    '<level>{level: <8}</level> | '
-    '<cyan>{name}</cyan>:<cyan>{function}</cyan>'
+    '<level>{level: <8}</level>| '
+    '<cyan>{name}</cyan>:<cyan>{function}</cyan> | '
     '<level>{message}</level>'
 )
 logger.add(sys.stderr, format=logger_format, level='INFO')
@@ -47,94 +47,72 @@ vk = vk_session.get_api()
 
 @logger.catch
 async def get_group(raw_group: str):
-    try:
-        page = await pyppeteer_browser.newPage()
-        await page.goto(config.schedule_menu_url)
-        html = await page.content()
+    group = re.findall(pattern=re.escape(raw_group),
+                       string=all_groups,
+                       flags=re.IGNORECASE)
+    if not group:
+        return
 
-        soup = BeautifulSoup(html, 'lxml')
-        zero_group = soup.find('option').find_next()
-        all_groups = zero_group.find_next_siblings()
+    group = group[0]
+    group_tag = soup.find('option', string=group)
+    attributes_dict = group_tag.attrs
 
-        group = re.findall(pattern=re.escape(raw_group),
-                           string=str(all_groups),
-                           flags=re.IGNORECASE)
-        if not group:
-            return
-        else:
-            group = group[0]
-            group_tag = soup.find('option', string=group)
-            attributes_dict = group_tag.attrs
+    sid = attributes_dict.get('sid')
+    gr = attributes_dict.get('value')
 
-            sid = attributes_dict.get('sid')
-            gr = attributes_dict.get('value')
+    if any((sid, gr)) is None:
+        return
 
-            if any((sid, gr)) is None:
-                return
-            else:
-                schedule_url = config.api_link.format(group=group,
-                                                      sid=sid,
-                                                      gr=gr)
-                return {'URL': schedule_url,
-                        'group': group}
-    finally:
-        await page.close()
+    schedule_url = config.api_link.format(group=group,
+                                          sid=sid,
+                                          gr=gr)
+    return {'URL': schedule_url,
+            'group': group}
 
 
 @logger.catch
 async def make_screenshot(URL: str, group: str):
     local_screenshot_options = chrome_options.pyppeteer_screenshot_options
 
-    group_filename = group.strip('()') + '.png'
-    local_screenshot_options.update(path=group_filename)
+    group_filename = group + '.png'
+    local_screenshot_options.update(path=f'./temp/{group_filename}')
     try:
         page = await pyppeteer_browser.newPage()
         await page.goto(URL, options=chrome_options.pyppeteer_goto_options)
         await page.screenshot(options=local_screenshot_options)
-        return await PhotoMessageUploader(bot.api).upload(group_filename)
+        return await PhotoMessageUploader(bot.api).upload(f'./temp/{group_filename}')
     finally:
         await page.close()
 
 
 @logger.catch
-def sync_get_group(raw_group: str):
-    with webdriver.Chrome(options=chrome_options.selenium_args) as browser:
-        browser.get(config.schedule_menu_url)
-        html = browser.page_source
+def sync_get_group(group: str):
+    group_tag = soup.find('option', string=group)
+    attributes_dict = group_tag.attrs
 
-        soup = BeautifulSoup(html, 'lxml')
-        zero_group = soup.find('option').find_next()
-        all_groups = zero_group.find_next_siblings()
+    sid = attributes_dict.get('sid')
+    gr = attributes_dict.get('value')
 
-        group = re.findall(pattern=re.escape(raw_group),
-                           string=str(all_groups),
-                           flags=re.IGNORECASE)[0]
-        group_tag = soup.find('option', string=group)
-        attributes_dict = group_tag.attrs
-
-        sid = attributes_dict.get('sid')
-        gr = attributes_dict.get('value')
-
-        schedule_url = config.api_link.format(group=group,
-                                              sid=sid,
-                                              gr=gr)
-        return {'URL': schedule_url,
-                'group': group}
+    schedule_url = config.api_link.format(group=group,
+                                          sid=sid,
+                                          gr=gr)
+    return {'URL': schedule_url,
+            'group': group}
 
 
 @logger.catch
 def sync_make_screenshot(URL: str, group: str):
-    group_filename = group.strip('()') + '.png'
+    group_filename = group + '.png'
     with webdriver.Chrome(options=chrome_options.selenium_args) as browser:
         S = lambda x: browser.execute_script('return document.body.parentNode.scroll' + x) # noqa
 
         browser.get(URL)
         browser.set_window_size(S('Width'), S('Height'))
         browser.maximize_window()
-        browser.find_element(By.TAG_NAME, 'html').screenshot(group_filename)
+        browser.find_element(By.TAG_NAME, 'html').screenshot(f'./temp/{group_filename}')
 
         upload = VkUpload(vk)
-        photo_obj = upload.photo_messages(group_filename)[0]
+        photo_obj = upload.photo_messages(f'./temp/{group_filename}')[0]
 
         return 'photo{owner_id}_{id}_{access_key}'.format(**photo_obj)
 
@@ -271,29 +249,31 @@ async def set_group_public(message: Message, raw_group: str):
         return
 
     group_and_url = await get_group(raw_group)
+
     if not isinstance(group_and_url, dict):
         await message.reply(msg_templates.group_not_found_message)
+        return
+
+    group = group_and_url.get('group')
+
+    if message.peer_id in db.keys():
+        db[message.peer_id].update(group=group,
+                                   URL=group_and_url.get('URL'))
     else:
-        group = group_and_url.get('group')
+        db[message.peer_id] = {'group': group,
+                               'URL': group_and_url.get('URL')}
 
-        if message.peer_id in db.keys():
-            db[message.peer_id].update(group=group,
-                                       URL=group_and_url.get('URL'))
-        else:
-            db[message.peer_id] = {'group': group,
-                                   'URL': group_and_url.get('URL')}
+    async with aiofiles.open('DB.txt', 'w', encoding='UTF-8') as temp:
+        await temp.write(str(db))
 
-        async with aiofiles.open('DB.txt', 'w', encoding='UTF-8') as temp:
-            await temp.write(str(db))
+    await message.reply(msg_templates.set_group_chat_success.format(group=group))
 
-        await message.reply(msg_templates.set_group_chat_success.format(group=group))
-
-        await message.answer(msg_templates.set_group_success2,
-                             keyboard=keyboards.GetScheduleKeyboard)
+    await message.answer(msg_templates.set_group_success2,
+                         keyboard=keyboards.GetScheduleKeyboard)
 
 
 @bot.on.private_message(text='/группа <raw_group>')
-async def set_group_private(message: Message, raw_group):
+async def set_group_private(message: Message, raw_group: str):
     global db
 
     if len(raw_group) not in range(10, 17):
@@ -301,25 +281,27 @@ async def set_group_private(message: Message, raw_group):
         return
 
     group_and_url = await get_group(raw_group)
+
     if not isinstance(group_and_url, dict):
         await message.reply(msg_templates.group_not_found_message)
+        return
+
+    group = group_and_url.get('group')
+
+    if message.peer_id in db.keys():
+        db[message.peer_id].update(group=group,
+                                   URL=group_and_url.get('URL'))
     else:
-        group = group_and_url.get('group')
+        db[message.peer_id] = {'group': group,
+                               'URL': group_and_url.get('URL')}
 
-        if message.peer_id in db.keys():
-            db[message.peer_id].update(group=group,
-                                       URL=group_and_url.get('URL'))
-        else:
-            db[message.peer_id] = {'group': group,
-                                   'URL': group_and_url.get('URL')}
+    async with aiofiles.open('DB.txt', 'w', encoding='UTF-8') as temp:
+        await temp.write(str(db))
 
-        async with aiofiles.open('DB.txt', 'w', encoding='UTF-8') as temp:
-            await temp.write(str(db))
-
-        await message.reply(msg_templates.set_group_private_success.format(user_id=message.peer_id,
-                                                                           group=group))
-        await message.answer(msg_templates.set_group_success2,
-                             keyboard=keyboards.GetScheduleKeyboard)
+    await message.reply(msg_templates.set_group_private_success.format(user_id=message.peer_id,
+                                                                       group=group))
+    await message.answer(msg_templates.set_group_success2,
+                         keyboard=keyboards.GetScheduleKeyboard)
 
 
 @bot.on.message(text='/расписание')
@@ -496,23 +478,19 @@ async def global_handling(event: GroupTypes.MessageNew):
                        args=[peer_id],
                        daemon=True).start()
             case 'get_schedule':
-                if user := db.get(peer_id) is None:
-                    await bot.api.messages.send(random_id=get_random_id(),
-                                                peer_id=peer_id,
-                                                message=msg_templates.group_not_set_message)
-                else:
-                    if user := db.get(peer_id):
-                        uploaded_screenshot = await make_screenshot(user.get('URL'),
-                                                                    user.get('group'))
-                        await bot.api.messages.send(random_id=get_random_id(),
-                                                    peer_id=peer_id,
-                                                    attachment=uploaded_screenshot,
-                                                    keyboard=keyboards.GetScheduleKeyboard)
+                user = db.get(peer_id)
+
+                uploaded_screenshot = await make_screenshot(user.get('URL'),
+                                                            user.get('group'))
+                await bot.api.messages.send(random_id=get_random_id(),
+                                            peer_id=peer_id,
+                                            attachment=uploaded_screenshot,
+                                            keyboard=keyboards.GetScheduleKeyboard)
 
 
 @bot.on.chat_message(rules.ChatActionRule("chat_invite_user"))
 async def bot_joined(message: Message):
-    if message.action.member_id == -config.group_id:
+    if message.action.member_id and abs(message.action.member_id) == abs(config.group_id):
         await bot.api.messages.send(random_id=get_random_id(),
                                     peer_id=message.peer_id,
                                     message=msg_templates.start_message)
@@ -530,7 +508,20 @@ async def bot_joined(message: Message):
                                     message=msg_templates.bot_was_added_admin_log.format(message))
 
 
-async def load_tasks_from_db():
+async def run_chrome_on_startup():
+    global pyppeteer_browser
+
+    pyppeteer_browser = await launch(options=chrome_options.pyppeteer_options)
+    logger.success('Chrome was started')
+
+
+async def load_tasks_from_db_on_startup():
+    global db
+
+    async with aiofiles.open('DB.txt', 'r', encoding='UTF-8') as temp:
+        db = await temp.read()
+    db = literal_eval(db)
+
     db_peer_ids_keys = list(db.keys())
 
     for key in db_peer_ids_keys:
@@ -559,26 +550,53 @@ async def load_tasks_from_db():
                        daemon=True).start()
 
 
-async def main():
-    global db
-    global pyppeteer_browser
+async def close_chrome_on_shutdown():
+    await pyppeteer_browser.close()
+    logger.success('Chrome was killed')
+
+
+@bot.loop_wrapper.interval(days=1)
+async def parse_groups_tags():
+    global soup
+    global all_groups
 
     try:
-        pyppeteer_browser = await launch(options=chrome_options.pyppeteer_options)
+        page = await pyppeteer_browser.newPage()
+        await page.goto(config.schedule_menu_url, options=chrome_options.pyppeteer_goto_options)
+        await asyncio.sleep(10)
+        html = await page.content()
 
-        for bp in load_blueprints_from_package('blueprints'):
-            bp.load(bot)
+        soup = BeautifulSoup(html, 'lxml')
+        zero_group = soup.find('option').find_next()
+        all_groups = str(zero_group.find_next_siblings())
 
-        async with aiofiles.open('DB.txt', 'r', encoding='UTF-8') as temp:
-            db = await temp.read()
-        db = literal_eval(db)
-
-        await load_tasks_from_db()
-
-        await bot.run_polling()
+        logger.success('Groups was parsed')
     finally:
-        await pyppeteer_browser.close()
+        await page.close()
+
+
+@bot.loop_wrapper.interval(hours=4)
+async def set_group_status_online():
+    try:
+        await bot.api.groups.enable_online(config.group_id)
+        logger.success('Group is online now')
+    except VKAPIError:
+        logger.warning('Online is already enabled')
+
+
+def main():
+    for bp in bps:
+        bp.load(bot)
+
+    bot.loop_wrapper.on_startup.extend((run_chrome_on_startup(),
+                                        parse_groups_tags(),
+                                        load_tasks_from_db_on_startup(),
+                                        set_group_status_online()))
+
+    bot.loop_wrapper.on_shutdown.append(close_chrome_on_shutdown())
+
+    bot.run_forever()
 
 
 if __name__ == '__main__':
-    asyncio.run(main())
+    main()
