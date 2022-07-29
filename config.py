@@ -16,6 +16,3 @@ schedule_menu_url = 'http://mnokol.tyuiu.ru/rtsp/index2.php'
 
 
 chrome_path = '/usr/bin/google-chrome'
-
-
-assert group_id > 0
