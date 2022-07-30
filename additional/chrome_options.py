@@ -1,13 +1,4 @@
-from selenium.webdriver import ChromeOptions
 from config import chrome_path
-
-
-selenium_args = ChromeOptions()
-selenium_args.add_argument('--headless')
-selenium_args.add_argument('--no-sandbox')
-selenium_args.add_argument('--disable-setuid-sandbox')
-selenium_args.add_argument('--hide-scrollbars')
-selenium_args.add_experimental_option('excludeSwitches', ['enable-logging'])
 
 
 pyppeteer_options = {'executablePath': chrome_path,
@@ -35,6 +26,7 @@ pyppeteer_options = {'executablePath': chrome_path,
                               '--disable-prompt-on-repost',
                               '--disable-speech-api',
                               '--disable-sync',
+                              '--disable-gpu'
                               '--hide-scrollbars',
                               '--ignore-gpu-blacklist',
                               '--metrics-recording-only',
