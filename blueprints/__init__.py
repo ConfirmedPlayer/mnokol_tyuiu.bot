@@ -1,4 +1,4 @@
-from . import admin, middlewares, other
+from . import admin, middlewares, events, other
 
 
-bps = (admin.bp, middlewares.bp, other.bp)
+bps = (admin.bp, middlewares.bp, events.bp, other.bp)
