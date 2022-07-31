@@ -62,12 +62,12 @@ async def get_group(raw_group: str):
 
 @logger.catch
 async def take_screenshot(URL: str, group: str):
-    local_screenshot_options = chrome_options.pyppeteer_screenshot_options
+    local_screenshot_options = chrome_options.screenshot_options
     group_filename = f'{group}.png'
     local_screenshot_options.update(path=f'./temp/{group_filename}')
     try:
         page = await browser.newPage()
-        await page.goto(URL, options=chrome_options.pyppeteer_goto_options)
+        await page.goto(URL, options=chrome_options.goto_options)
         await page.screenshot(options=local_screenshot_options)
         return await PhotoMessageUploader(bot.api).upload(f'./temp/{group_filename}')
     finally:
@@ -78,9 +78,7 @@ async def take_screenshot(URL: str, group: str):
 async def send_schedule_every_n_hours(peer_id: int, hours: int):
     logger.success(f'Send schedule every {hours} hours for {peer_id} was started')
 
-    user_subscribed = db.get(peer_id).get('subscribed')
-
-    while user_subscribed:
+    while db.get(peer_id).get('subscribed'):
         URL = db.get(peer_id).get('URL')
         group = db.get(peer_id).get('group')
         uploaded_screenshot = await take_screenshot(URL, group)
@@ -114,8 +112,7 @@ async def send_schedule_n_times_a_day(peer_id: int, amount: int):
 
     match amount:
         case 2:
-            user_subscribed = db.get(peer_id).get('subscribed')
-            while user_subscribed:
+            while db.get(peer_id).get('subscribed'):
                 time_now = datetime.now(time_zone).strftime('%H:%M')
                 if time_now in two_times_range:
                     URL = db.get(peer_id).get('URL')
@@ -126,14 +123,13 @@ async def send_schedule_n_times_a_day(peer_id: int, amount: int):
                                                 peer_id=peer_id,
                                                 attachment=uploaded_screenshot,
                                                 message=time_now)
-                    await asyncio.sleep(45900)
+                    await asyncio.sleep(39300)
 
                 await asyncio.sleep(15)
 
             logger.info(f'{peer_id} unsubscribed')
         case 3:
-            user_subscribed = db.get(peer_id).get('subscribed')
-            while user_subscribed:
+            while db.get(peer_id).get('subscribed'):
                 time_now = datetime.now(time_zone).strftime('%H:%M')
                 if time_now in three_times_range:
                     URL = db.get(peer_id).get('URL')
@@ -144,14 +140,13 @@ async def send_schedule_n_times_a_day(peer_id: int, amount: int):
                                                 peer_id=peer_id,
                                                 attachment=uploaded_screenshot,
                                                 message=time_now)
-                    await asyncio.sleep(20700)
+                    await asyncio.sleep(21300)
 
                 await asyncio.sleep(15)
 
             logger.info(f'{peer_id} unsubscribed')
         case 4:
-            user_subscribed = db.get(peer_id).get('subscribed')
-            while user_subscribed:
+            while db.get(peer_id).get('subscribed'):
                 time_now = datetime.now(time_zone).strftime('%H:%M')
                 if time_now in four_times_range:
                     URL = db.get(peer_id).get('URL')
@@ -162,14 +157,13 @@ async def send_schedule_n_times_a_day(peer_id: int, amount: int):
                                                 peer_id=peer_id,
                                                 attachment=uploaded_screenshot,
                                                 message=time_now)
-                    await asyncio.sleep(13500)
+                    await asyncio.sleep(14100)
 
                 await asyncio.sleep(15)
 
             logger.info(f'{peer_id} unsubscribed')
         case 5:
-            user_subscribed = db.get(peer_id).get('subscribed')
-            while user_subscribed:
+            while db.get(peer_id).get('subscribed'):
                 time_now = datetime.now(time_zone).strftime('%H:%M')
                 if time_now in five_times_range:
                     URL = db.get(peer_id).get('URL')
@@ -180,7 +174,7 @@ async def send_schedule_n_times_a_day(peer_id: int, amount: int):
                                                 peer_id=peer_id,
                                                 attachment=uploaded_screenshot,
                                                 message=time_now)
-                    await asyncio.sleep(9900)
+                    await asyncio.sleep(10500)
 
                 await asyncio.sleep(15)
 
@@ -192,25 +186,23 @@ async def send_schedule_on_change(peer_id: int):
     logger.success(f'Send schedule on change for {peer_id} was started')
 
     URL = db.get(peer_id).get('URL')
-    group = db.get(peer_id).get('group')
 
     async with aiohttp.ClientSession() as session:
         async with session.get(URL) as response:
             html = await response.text()
-
     first_html = r''.join(html)
-    user_subscribed = db.get(peer_id).get('subscribed')
 
-    while user_subscribed:
+    while db.get(peer_id).get('subscribed'):
+        URL = db.get(peer_id).get('URL')
+        group = db.get(peer_id).get('group')
+
         async with aiohttp.ClientSession() as session:
             async with session.get(URL) as response:
                 html = await response.text()
-
         new_html = r''.join(html)
 
         if first_html != new_html:
             first_html = new_html
-
             uploaded_screenshot = await take_screenshot(URL, group)
             await bot.api.messages.send(random_id=0,
                                         peer_id=peer_id,
@@ -372,7 +364,9 @@ async def unsubscribe(message: Message):
 async def global_handling(event: GroupTypes.MessageNew):
     if payload := event.object.message.payload:
         payload = literal_eval(payload)
-        command = payload['command']
+        command = payload.get('command')
+        if command is None:
+            return
 
         peer_id = event.object.message.peer_id
 
@@ -498,7 +492,7 @@ async def bot_joined(message: Message):
 async def run_chrome_on_startup():
     global browser
 
-    browser = await launch(options=chrome_options.pyppeteer_options)
+    browser = await launch(options=chrome_options.browser_options)
     logger.success('Chrome was started')
 
 
@@ -509,7 +503,7 @@ async def parse_groups_tags():
 
     try:
         page = await browser.newPage()
-        await page.goto(schedule_menu_url, options=chrome_options.pyppeteer_goto_options)
+        await page.goto(schedule_menu_url, options=chrome_options.goto_options)
         await asyncio.sleep(10)
         html = await page.content()
 
@@ -522,7 +516,7 @@ async def parse_groups_tags():
         await page.close()
 
 
-@scheduler.scheduled_job('interval', hours=4)
+@scheduler.scheduled_job('interval', hours=3)
 async def set_group_status_online():
     try:
         await bot.api.groups.enable_online(group_id)
@@ -571,7 +565,7 @@ def main():
     for bp in bps:
         bp.load(bot)
 
-    scheduler.start()
+    scheduler.start(paused=True)
 
     bot.loop_wrapper.on_startup.extend((run_chrome_on_startup(),
                                        parse_groups_tags(),
@@ -580,6 +574,7 @@ def main():
 
     bot.loop_wrapper.on_shutdown.append(on_shutdown())
 
+    scheduler.resume()
     bot.run_forever()
 
 
