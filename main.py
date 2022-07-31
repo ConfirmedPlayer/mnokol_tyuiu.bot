@@ -43,7 +43,7 @@ async def get_group(raw_group: str):
     group = re.findall(pattern=re.escape(raw_group),
                        string=all_groups,
                        flags=re.IGNORECASE)
-    if not group:
+    if not group or len(group) > 1:
         return
 
     group = group[0]
@@ -53,7 +53,7 @@ async def get_group(raw_group: str):
     sid = attributes_dict.get('sid')
     gr = attributes_dict.get('value')
 
-    if any((sid, gr)) is None:
+    if not any((sid, gr)):
         return
 
     schedule_url = api_link.format(group=group,
@@ -66,7 +66,6 @@ async def get_group(raw_group: str):
 @logger.catch
 async def take_screenshot(URL: str, group: str):
     local_screenshot_options = chrome_options.pyppeteer_screenshot_options
-
     group_filename = f'{group}.png'
     local_screenshot_options.update(path=f'./temp/{group_filename}')
     try:
@@ -82,7 +81,9 @@ async def take_screenshot(URL: str, group: str):
 async def send_schedule_every_n_hours(peer_id: int, hours: int):
     logger.success(f'Send schedule every {hours} hours for {peer_id} was started')
 
-    while db.get(peer_id).get('subscribed'):
+    user_subscribed = db.get(peer_id).get('subscribed')
+
+    while user_subscribed:
         URL = db.get(peer_id).get('URL')
         group = db.get(peer_id).get('group')
         uploaded_screenshot = await take_screenshot(URL, group)
@@ -116,7 +117,8 @@ async def send_schedule_n_times_a_day(peer_id: int, amount: int):
 
     match amount:
         case 2:
-            while db.get(peer_id).get('subscribed'):
+            user_subscribed = db.get(peer_id).get('subscribed')
+            while user_subscribed:
                 time_now = datetime.now(time_zone).strftime('%H:%M')
                 if time_now in two_times_range:
                     URL = db.get(peer_id).get('URL')
@@ -133,7 +135,8 @@ async def send_schedule_n_times_a_day(peer_id: int, amount: int):
 
             logger.info(f'{peer_id} unsubscribed')
         case 3:
-            while db.get(peer_id).get('subscribed'):
+            user_subscribed = db.get(peer_id).get('subscribed')
+            while user_subscribed:
                 time_now = datetime.now(time_zone).strftime('%H:%M')
                 if time_now in three_times_range:
                     URL = db.get(peer_id).get('URL')
@@ -150,7 +153,8 @@ async def send_schedule_n_times_a_day(peer_id: int, amount: int):
 
             logger.info(f'{peer_id} unsubscribed')
         case 4:
-            while db.get(peer_id).get('subscribed'):
+            user_subscribed = db.get(peer_id).get('subscribed')
+            while user_subscribed:
                 time_now = datetime.now(time_zone).strftime('%H:%M')
                 if time_now in four_times_range:
                     URL = db.get(peer_id).get('URL')
@@ -167,7 +171,8 @@ async def send_schedule_n_times_a_day(peer_id: int, amount: int):
 
             logger.info(f'{peer_id} unsubscribed')
         case 5:
-            while db.get(peer_id).get('subscribed'):
+            user_subscribed = db.get(peer_id).get('subscribed')
+            while user_subscribed:
                 time_now = datetime.now(time_zone).strftime('%H:%M')
                 if time_now in five_times_range:
                     URL = db.get(peer_id).get('URL')
@@ -197,8 +202,9 @@ async def send_schedule_on_change(peer_id: int):
             html = await response.text()
 
     first_html = r''.join(html)
+    user_subscribed = db.get(peer_id).get('subscribed')
 
-    while db.get(peer_id).get('subscribed'):
+    while user_subscribed:
         async with aiohttp.ClientSession() as session:
             async with session.get(URL) as response:
                 html = await response.text()
@@ -235,13 +241,14 @@ async def set_group_public(message: Message, raw_group: str):
         return
 
     group = group_and_url.get('group')
+    URL = group_and_url.get('URL')
 
     if message.peer_id in db.keys():
         db[message.peer_id].update(group=group,
-                                   URL=group_and_url.get('URL'))
+                                   URL=URL)
     else:
         db[message.peer_id] = {'group': group,
-                               'URL': group_and_url.get('URL')}
+                               'URL': URL}
 
     async with aiofiles.open('DB.txt', 'w', encoding='UTF-8') as temp:
         await temp.write(str(db))
@@ -331,7 +338,8 @@ async def subscribe_to_first_method(message: Message, digit: str):
                     async with aiofiles.open('DB.txt', 'w', encoding='UTF-8') as temp:
                         await temp.write(str(db))
 
-                    await message.reply(msg_templates.subscription_successful)
+                    await message.reply(msg_templates.subscription_successful,
+                                        keyboard=keyboards.GetScheduleKeyboard)
                 scheduler.add_job(send_schedule_every_n_hours,
                                   args=(message.peer_id, n))
     else:
@@ -359,7 +367,8 @@ async def unsubscribe(message: Message):
             async with aiofiles.open('DB.txt', 'w', encoding='UTF-8') as temp:
                 await temp.write(str(db))
 
-            await message.reply(msg_templates.unsubscription_successful)
+            await message.reply(msg_templates.unsubscription_successful,
+                                keyboard=keyboards.GetScheduleKeyboard)
 
 
 @bot.on.raw_event(GroupEventType.MESSAGE_NEW, GroupTypes.MessageNew)
@@ -386,6 +395,8 @@ async def global_handling(event: GroupTypes.MessageNew):
                 db[peer_id]['amount'] = 2
                 db[peer_id]['subscribed'] = True
 
+                amount = db.get(peer_id).get('amount')
+
                 async with aiofiles.open('DB.txt', 'w', encoding='UTF-8') as temp:
                     await temp.write(str(db))
 
@@ -394,11 +405,13 @@ async def global_handling(event: GroupTypes.MessageNew):
                                             message=msg_templates.subscribed_to_2_times,
                                             keyboard=keyboards.GetScheduleKeyboard)
                 scheduler.add_job(send_schedule_n_times_a_day,
-                                  args=(peer_id, db.get(peer_id).get('amount')))
+                                  args=(peer_id, amount))
             case 'three_times':
                 db[peer_id]['method'] = 'n_times_a_day'
                 db[peer_id]['amount'] = 3
                 db[peer_id]['subscribed'] = True
+
+                amount = db.get(peer_id).get('amount')
 
                 async with aiofiles.open('DB.txt', 'w', encoding='UTF-8') as temp:
                     await temp.write(str(db))
@@ -408,11 +421,13 @@ async def global_handling(event: GroupTypes.MessageNew):
                                             message=msg_templates.subscribed_to_3_times,
                                             keyboard=keyboards.GetScheduleKeyboard)
                 scheduler.add_job(send_schedule_n_times_a_day,
-                                  args=(peer_id, db.get(peer_id).get('amount')))
+                                  args=(peer_id, amount))
             case 'four_times':
                 db[peer_id]['method'] = 'n_times_a_day'
                 db[peer_id]['amount'] = 4
                 db[peer_id]['subscribed'] = True
+
+                amount = db.get(peer_id).get('amount')
 
                 async with aiofiles.open('DB.txt', 'w', encoding='UTF-8') as temp:
                     await temp.write(str(db))
@@ -422,11 +437,13 @@ async def global_handling(event: GroupTypes.MessageNew):
                                             message=msg_templates.subscribed_to_4_times,
                                             keyboard=keyboards.GetScheduleKeyboard)
                 scheduler.add_job(send_schedule_n_times_a_day,
-                                  args=(peer_id, db.get(peer_id).get('amount')))
+                                  args=(peer_id, amount))
             case 'five_times':
                 db[peer_id]['method'] = 'n_times_a_day'
                 db[peer_id]['amount'] = 5
                 db[peer_id]['subscribed'] = True
+
+                amount = db.get(peer_id).get('amount')
 
                 async with aiofiles.open('DB.txt', 'w', encoding='UTF-8') as temp:
                     await temp.write(str(db))
@@ -436,7 +453,7 @@ async def global_handling(event: GroupTypes.MessageNew):
                                             message=msg_templates.subscribed_to_5_times,
                                             keyboard=keyboards.GetScheduleKeyboard)
                 scheduler.add_job(send_schedule_n_times_a_day,
-                                  args=(peer_id, db.get(peer_id).get('amount')))
+                                  args=(peer_id, amount))
             case 'on_change':
                 db[peer_id]['method'] = 'on_change'
                 db[peer_id]['subscribed'] = True
