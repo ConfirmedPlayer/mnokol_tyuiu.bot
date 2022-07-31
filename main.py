@@ -565,8 +565,6 @@ def main():
     for bp in bps:
         bp.load(bot)
 
-    scheduler.start(paused=True)
-
     bot.loop_wrapper.on_startup.extend((run_chrome_on_startup(),
                                        parse_groups_tags(),
                                        load_tasks_from_db_on_startup(),
@@ -574,7 +572,8 @@ def main():
 
     bot.loop_wrapper.on_shutdown.append(on_shutdown())
 
-    scheduler.resume()
+    scheduler.start()
+
     bot.run_forever()
 
 
