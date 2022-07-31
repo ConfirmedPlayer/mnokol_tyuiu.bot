@@ -53,9 +53,6 @@ async def get_group(raw_group: str):
     sid = attributes_dict.get('sid')
     gr = attributes_dict.get('value')
 
-    if not any((sid, gr)):
-        return
-
     schedule_url = api_link.format(group=group,
                                    sid=sid,
                                    gr=gr)
