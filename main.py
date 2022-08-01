@@ -1,5 +1,5 @@
 import additional.chrome_options as chrome_options
-import additional.keyboards as keyboards
+import keyboards.schedule_keyboards as schedule_keyboards
 import additional.message_templates as msg_templates
 from blueprints import bps
 from config import token, api_link, group_id, admin_user_id, schedule_menu_url
@@ -11,11 +11,10 @@ from datetime import datetime
 from loguru import logger
 from pyppeteer import launch
 from pytz import timezone
-from vkbottle import GroupEventType, GroupTypes, VKAPIError
+from vkbottle import AiohttpClient, VKAPIError
 from vkbottle.bot import Bot, Message, rules
 from vkbottle.tools import PhotoMessageUploader
 import aiofiles
-import aiohttp
 import asyncio
 import re
 import sys
@@ -79,6 +78,9 @@ async def send_schedule_every_n_hours(peer_id: int, hours: int):
     logger.success(f'Send schedule every {hours} hours for {peer_id} was started')
 
     while db.get(peer_id).get('subscribed'):
+        while datetime.now().minute != 0:
+            await asyncio.sleep(0)
+
         URL = db.get(peer_id).get('URL')
         group = db.get(peer_id).get('group')
         uploaded_screenshot = await take_screenshot(URL, group)
@@ -87,7 +89,7 @@ async def send_schedule_every_n_hours(peer_id: int, hours: int):
                                     peer_id=peer_id,
                                     attachment=uploaded_screenshot)
 
-        await asyncio.sleep(hours * 3600)
+        await asyncio.sleep(hours * 3300)
 
     logger.info(f'{peer_id} unsubscribed')
 
@@ -98,17 +100,13 @@ async def send_schedule_n_times_a_day(peer_id: int, amount: int):
 
     time_zone = timezone('Asia/Yekaterinburg')
 
-    two_times_range = ('06:00', '06:01',
-                       '19:00', '19:01')
+    two_times_range = ('06:00', '19:00')
 
-    three_times_range = ('06:00', '06:01', '12:00',
-                         '12:01', '18:00', '18:01')
+    three_times_range = ('06:00', '12:00', '18:00')
 
-    four_times_range = ('06:00', '06:01', '12:00', '12:01',
-                        '16:00', '16:01', '20:00', '20:01')
+    four_times_range = ('06:00', '12:00', '16:00', '20:00')
 
-    five_times_range = ('06:00', '06:01', '12:00', '12:01', '15:00',
-                        '15:01', '18:00', '18:01', '21:00', '21:01')
+    five_times_range = ('06:00', '12:00', '15:00', '18:00', '21:00')
 
     match amount:
         case 2:
@@ -125,7 +123,7 @@ async def send_schedule_n_times_a_day(peer_id: int, amount: int):
                                                 message=time_now)
                     await asyncio.sleep(39300)
 
-                await asyncio.sleep(15)
+                await asyncio.sleep(0)
 
             logger.info(f'{peer_id} unsubscribed')
         case 3:
@@ -142,7 +140,7 @@ async def send_schedule_n_times_a_day(peer_id: int, amount: int):
                                                 message=time_now)
                     await asyncio.sleep(21300)
 
-                await asyncio.sleep(15)
+                await asyncio.sleep(0)
 
             logger.info(f'{peer_id} unsubscribed')
         case 4:
@@ -159,7 +157,7 @@ async def send_schedule_n_times_a_day(peer_id: int, amount: int):
                                                 message=time_now)
                     await asyncio.sleep(14100)
 
-                await asyncio.sleep(15)
+                await asyncio.sleep(0)
 
             logger.info(f'{peer_id} unsubscribed')
         case 5:
@@ -176,7 +174,7 @@ async def send_schedule_n_times_a_day(peer_id: int, amount: int):
                                                 message=time_now)
                     await asyncio.sleep(10500)
 
-                await asyncio.sleep(15)
+                await asyncio.sleep(0)
 
             logger.info(f'{peer_id} unsubscribed')
 
@@ -187,18 +185,16 @@ async def send_schedule_on_change(peer_id: int):
 
     URL = db.get(peer_id).get('URL')
 
-    async with aiohttp.ClientSession() as session:
-        async with session.get(URL) as response:
-            html = await response.text()
+    async with AiohttpClient() as session:
+        html = await session.request_text(URL)
     first_html = r''.join(html)
 
     while db.get(peer_id).get('subscribed'):
         URL = db.get(peer_id).get('URL')
         group = db.get(peer_id).get('group')
 
-        async with aiohttp.ClientSession() as session:
-            async with session.get(URL) as response:
-                html = await response.text()
+        async with AiohttpClient() as session:
+            html = await session.request_text(URL)
         new_html = r''.join(html)
 
         if first_html != new_html:
@@ -208,9 +204,7 @@ async def send_schedule_on_change(peer_id: int):
                                         peer_id=peer_id,
                                         attachment=uploaded_screenshot,
                                         message='Изменение в расписании')
-            await asyncio.sleep(1000)
-        else:
-            await asyncio.sleep(1000)
+        await asyncio.sleep(600)
 
     logger.info(f'{peer_id} unsubscribed')
 
@@ -245,7 +239,7 @@ async def set_group_public(message: Message, raw_group: str):
     await message.reply(msg_templates.set_group_chat_success.format(group=group))
 
     await message.answer(msg_templates.set_group_success2,
-                         keyboard=keyboards.GetScheduleKeyboard)
+                         keyboard=schedule_keyboards.GetScheduleKeyboard)
 
 
 @bot.on.private_message(text='/группа <raw_group>')
@@ -277,7 +271,7 @@ async def set_group_private(message: Message, raw_group: str):
     await message.reply(msg_templates.set_group_private_success.format(user_id=message.peer_id,
                                                                        group=group))
     await message.answer(msg_templates.set_group_success2,
-                         keyboard=keyboards.GetScheduleKeyboard)
+                         keyboard=schedule_keyboards.GetScheduleKeyboard)
 
 
 @bot.on.message(text='/расписание')
@@ -289,19 +283,7 @@ async def show_schedule(message: Message):
             uploaded_screenshot = await take_screenshot(user.get('URL'),
                                                         user.get('group'))
             await message.answer(attachment=uploaded_screenshot,
-                                 keyboard=keyboards.GetScheduleKeyboard)
-
-
-@bot.on.message(text='/подписка')
-async def subscription_types(message: Message):
-    if message.peer_id in db.keys():
-        if not db.get(message.peer_id).get('subscribed'):
-            await message.reply(msg_templates.choose_subscription_message,
-                                keyboard=keyboards.SpamVariantsKeyboard)
-        else:
-            await message.reply(msg_templates.already_subscribed_message)
-    else:
-        await message.reply(msg_templates.group_not_set_message)
+                                 keyboard=schedule_keyboards.GetScheduleKeyboard)
 
 
 @bot.on.message(text='/рассылка <digit>')
@@ -328,11 +310,23 @@ async def subscribe_to_first_method(message: Message, digit: str):
                         await temp.write(str(db))
 
                     await message.reply(msg_templates.subscription_successful,
-                                        keyboard=keyboards.GetScheduleKeyboard)
+                                        keyboard=schedule_keyboards.GetScheduleKeyboard)
                 scheduler.add_job(send_schedule_every_n_hours,
                                   args=(message.peer_id, n))
     else:
         await message.reply(msg_templates.incorrect_number)
+
+
+@bot.on.message(text='/подписка')
+async def subscription_types(message: Message):
+    if message.peer_id in db.keys():
+        if not db.get(message.peer_id).get('subscribed'):
+            await message.reply(msg_templates.choose_subscription_message,
+                                keyboard=schedule_keyboards.SpamVariantsKeyboard)
+        else:
+            await message.reply(msg_templates.already_subscribed_message)
+    else:
+        await message.reply(msg_templates.group_not_set_message)
 
 
 @bot.on.message(text='/отписаться')
@@ -357,122 +351,118 @@ async def unsubscribe(message: Message):
                 await temp.write(str(db))
 
             await message.reply(msg_templates.unsubscription_successful,
-                                keyboard=keyboards.GetScheduleKeyboard)
+                                keyboard=schedule_keyboards.GetScheduleKeyboard)
 
 
-@bot.on.raw_event(GroupEventType.MESSAGE_NEW, GroupTypes.MessageNew)
-async def global_handling(event: GroupTypes.MessageNew):
-    if payload := event.object.message.payload:
-        payload = literal_eval(payload)
-        command = payload.get('command')
-        if command is None:
-            return
+@bot.on.message(payload={"command": "every_n_hours"})
+async def every_n_hours_payload(message: Message):
+    await message.reply(msg_templates.every_n_hours_method_template)
 
-        peer_id = event.object.message.peer_id
 
-        match command:
-            case 'every_n_hours':
-                await bot.api.messages.send(random_id=0,
-                                            peer_id=peer_id,
-                                            message=msg_templates.every_n_hours_method_template,
-                                            keyboard=keyboards.GetScheduleKeyboard)
-            case 'n_times':
-                await bot.api.messages.send(random_id=0,
-                                            peer_id=peer_id,
-                                            message=msg_templates.choose_subscription_message,
-                                            keyboard=keyboards.AmountVariantsKeyboard)
-            case 'two_times':
-                db[peer_id]['method'] = 'n_times_a_day'
-                db[peer_id]['amount'] = 2
-                db[peer_id]['subscribed'] = True
+@bot.on.message(payload={"command": "n_times"})
+async def n_times_payload(message: Message):
+    await message.reply(msg_templates.choose_subscription_message,
+                        keyboard=schedule_keyboards.AmountVariantsKeyboard)
 
-                amount = db.get(peer_id).get('amount')
 
-                async with aiofiles.open('DB.txt', 'w', encoding='UTF-8') as temp:
-                    await temp.write(str(db))
+@bot.on.message(payload={"command": "two_times"})
+async def two_times_payload(message: Message):
+    db[message.peer_id]['method'] = 'n_times_a_day'
+    db[message.peer_id]['amount'] = 2
+    db[message.peer_id]['subscribed'] = True
 
-                await bot.api.messages.send(random_id=0,
-                                            peer_id=peer_id,
-                                            message=msg_templates.subscribed_to_2_times,
-                                            keyboard=keyboards.GetScheduleKeyboard)
-                scheduler.add_job(send_schedule_n_times_a_day,
-                                  args=(peer_id, amount))
-            case 'three_times':
-                db[peer_id]['method'] = 'n_times_a_day'
-                db[peer_id]['amount'] = 3
-                db[peer_id]['subscribed'] = True
+    amount = db.get(message.peer_id).get('amount')
 
-                amount = db.get(peer_id).get('amount')
+    async with aiofiles.open('DB.txt', 'w', encoding='UTF-8') as temp:
+        await temp.write(str(db))
 
-                async with aiofiles.open('DB.txt', 'w', encoding='UTF-8') as temp:
-                    await temp.write(str(db))
+    await message.reply(msg_templates.subscribed_to_2_times,
+                        keyboard=schedule_keyboards.GetScheduleKeyboard)
 
-                await bot.api.messages.send(random_id=0,
-                                            peer_id=peer_id,
-                                            message=msg_templates.subscribed_to_3_times,
-                                            keyboard=keyboards.GetScheduleKeyboard)
-                scheduler.add_job(send_schedule_n_times_a_day,
-                                  args=(peer_id, amount))
-            case 'four_times':
-                db[peer_id]['method'] = 'n_times_a_day'
-                db[peer_id]['amount'] = 4
-                db[peer_id]['subscribed'] = True
+    scheduler.add_job(send_schedule_n_times_a_day,
+                      args=(message.peer_id, amount))
 
-                amount = db.get(peer_id).get('amount')
 
-                async with aiofiles.open('DB.txt', 'w', encoding='UTF-8') as temp:
-                    await temp.write(str(db))
+@bot.on.message(payload={"command": "three_times"})
+async def three_times_payload(message: Message):
+    db[message.peer_id]['method'] = 'n_times_a_day'
+    db[message.peer_id]['amount'] = 3
+    db[message.peer_id]['subscribed'] = True
 
-                await bot.api.messages.send(random_id=0,
-                                            peer_id=peer_id,
-                                            message=msg_templates.subscribed_to_4_times,
-                                            keyboard=keyboards.GetScheduleKeyboard)
-                scheduler.add_job(send_schedule_n_times_a_day,
-                                  args=(peer_id, amount))
-            case 'five_times':
-                db[peer_id]['method'] = 'n_times_a_day'
-                db[peer_id]['amount'] = 5
-                db[peer_id]['subscribed'] = True
+    amount = db.get(message.peer_id).get('amount')
 
-                amount = db.get(peer_id).get('amount')
+    async with aiofiles.open('DB.txt', 'w', encoding='UTF-8') as temp:
+        await temp.write(str(db))
 
-                async with aiofiles.open('DB.txt', 'w', encoding='UTF-8') as temp:
-                    await temp.write(str(db))
+    await message.reply(msg_templates.subscribed_to_3_times,
+                        keyboard=schedule_keyboards.GetScheduleKeyboard)
 
-                await bot.api.messages.send(random_id=0,
-                                            peer_id=peer_id,
-                                            message=msg_templates.subscribed_to_5_times,
-                                            keyboard=keyboards.GetScheduleKeyboard)
-                scheduler.add_job(send_schedule_n_times_a_day,
-                                  args=(peer_id, amount))
-            case 'on_change':
-                db[peer_id]['method'] = 'on_change'
-                db[peer_id]['subscribed'] = True
+    scheduler.add_job(send_schedule_n_times_a_day,
+                      args=(message.peer_id, amount))
 
-                async with aiofiles.open('DB.txt', 'w', encoding='UTF-8') as temp:
-                    await temp.write(str(db))
 
-                await bot.api.messages.send(random_id=0,
-                                            peer_id=peer_id,
-                                            message=msg_templates.on_change_method_subscribed,
-                                            keyboard=keyboards.GetScheduleKeyboard)
+@bot.on.message(payload={"command": "four_times"})
+async def four_times_payload(message: Message):
+    db[message.peer_id]['method'] = 'n_times_a_day'
+    db[message.peer_id]['amount'] = 4
+    db[message.peer_id]['subscribed'] = True
 
-                scheduler.add_job(send_schedule_on_change,
-                                  args=[peer_id])
-            case 'get_schedule':
-                user = db.get(peer_id)
+    amount = db.get(message.peer_id).get('amount')
 
-                uploaded_screenshot = await take_screenshot(user.get('URL'),
-                                                            user.get('group'))
-                await bot.api.messages.send(random_id=0,
-                                            peer_id=peer_id,
-                                            attachment=uploaded_screenshot,
-                                            keyboard=keyboards.GetScheduleKeyboard)
+    async with aiofiles.open('DB.txt', 'w', encoding='UTF-8') as temp:
+        await temp.write(str(db))
+
+    await message.reply(msg_templates.subscribed_to_4_times,
+                        keyboard=schedule_keyboards.GetScheduleKeyboard)
+
+    scheduler.add_job(send_schedule_n_times_a_day,
+                      args=(message.peer_id, amount))
+
+
+@bot.on.message(payload={"command": "five_times"})
+async def five_times_payload(message: Message):
+    db[message.peer_id]['method'] = 'n_times_a_day'
+    db[message.peer_id]['amount'] = 5
+    db[message.peer_id]['subscribed'] = True
+
+    amount = db.get(message.peer_id).get('amount')
+
+    async with aiofiles.open('DB.txt', 'w', encoding='UTF-8') as temp:
+        await temp.write(str(db))
+
+    await message.reply(msg_templates.subscribed_to_5_times,
+                        keyboard=schedule_keyboards.GetScheduleKeyboard)
+
+    scheduler.add_job(send_schedule_n_times_a_day,
+                      args=(message.peer_id, amount))
+
+
+@bot.on.message(payload={"command": "on_change"})
+async def on_change_payload(message: Message):
+    db[message.peer_id]['method'] = 'on_change'
+    db[message.peer_id]['subscribed'] = True
+
+    async with aiofiles.open('DB.txt', 'w', encoding='UTF-8') as temp:
+        await temp.write(str(db))
+
+    await message.reply(msg_templates.on_change_method_subscribed,
+                        keyboard=schedule_keyboards.GetScheduleKeyboard)
+
+    scheduler.add_job(send_schedule_on_change, args=[message.peer_id])
+
+
+@bot.on.message(payload={"command": "get_schedule"})
+async def get_schedule_payload(message: Message):
+    user = db.get(message.peer_id)
+    uploaded_screenshot = await take_screenshot(user.get('URL'),
+                                                user.get('group'))
+    message.reply(attachment=uploaded_screenshot,
+                  keyboard=schedule_keyboards.GetScheduleKeyboard)
 
 
 @bot.on.chat_message(rules.ChatActionRule("chat_invite_user"))
 async def bot_joined(message: Message):
-    if message.action.member_id and abs(message.action.member_id) == abs(group_id):
+    if message.action.member_id and abs(message.action.member_id) == group_id:
         await bot.api.messages.send(random_id=0,
                                     peer_id=message.peer_id,
                                     message=msg_templates.start_message)
@@ -565,12 +555,12 @@ def main():
     for bp in bps:
         bp.load(bot)
 
-    bot.loop_wrapper.on_startup.extend((run_chrome_on_startup(),
-                                       parse_groups_tags(),
-                                       load_tasks_from_db_on_startup(),
-                                       set_group_status_online()))
+    bot.loop_wrapper.on_startup = [run_chrome_on_startup(),
+                                   parse_groups_tags(),
+                                   load_tasks_from_db_on_startup(),
+                                   set_group_status_online()]
 
-    bot.loop_wrapper.on_shutdown.append(on_shutdown())
+    bot.loop_wrapper.on_shutdown = [on_shutdown()]
 
     scheduler.start()
 
