@@ -63,11 +63,11 @@ already_subscribed_message = '''
 '''
 
 incorrect_number = '''
-Неверное число.
+Неверное число. Попробуйте ещё раз.
 '''
 
 incorrect_number_range = '''
-Число должно быть в диапазоне от 1 до 99.
+Число должно быть в диапазоне от 1 до 99. Попробуйте ещё раз.
 '''
 
 subscription_successful = '''
@@ -82,12 +82,16 @@ not_subscribed_error = '''
 Вы не подписаны на рассылку.
 '''
 
-every_n_hours_method_template = '''
+every_n_hours_method_template_public = '''
 Пожалуйста, отправьте команду
 /рассылка <число>
 
 Пример: /рассылка 5
 Значит, рассылка каждые 5 часов.
+'''
+
+every_n_hours_method_template_private = '''
+Пожалуйста, отправьте число в диапазоне 1 - 99.
 '''
 
 subscribed_to_2_times = '''
