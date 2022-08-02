@@ -416,13 +416,13 @@ async def unsubscribe(message: Message):
 
 @bot.on.chat_message(payload={"command": "every_n_hours"})
 async def every_n_hours_payload_public(message: Message):
-    return await message.reply(msg_templates.every_n_hours_method_template_private)
+    return await message.reply(msg_templates.every_n_hours_method_template_public)
 
 
 @bot.on.private_message(payload={"command": "every_n_hours"})
 async def every_n_hours_payload_private(message: Message):
     await bot.state_dispenser.set(message.peer_id, ScheduleStates.WAITING_A_NUMBER)
-    return await message.reply(msg_templates.every_n_hours_method_template_public)
+    return await message.reply(msg_templates.every_n_hours_method_template_private)
 
 
 @bot.on.message(payload={"command": "n_times"})
