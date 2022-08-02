@@ -1,10 +1,10 @@
-import additional.chrome_options as chrome_options
-import keyboards.schedule_keyboards as schedule_keyboards
-import additional.sql_queries as sql_queries
-import additional.message_templates as msg_templates
+from additional import chrome_options
+from additional import message_templates as msg_templates
 from blueprints import bps
-from config import (token, api_link, group_id, admin_user_id, schedule_menu_url,
-                    db, db_host, db_user, db_password)
+from config import token, api_link, group_id, admin_user_id, schedule_menu_url, db_credentials
+from keyboards import schedule_keyboards
+from mnokol_db import MNOKOL_DB
+from states.schedule_states import ScheduleStates
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from bs4 import BeautifulSoup
@@ -78,21 +78,16 @@ async def take_screenshot(URL: str, group: str):
 async def send_schedule_every_n_hours(peer_id: int, hours: int):
     logger.success(f'Send schedule every {hours} hours for {peer_id} was started')
 
-    peer_subscribed = await conn.fetch(sql_queries.is_peer_subscribed, peer_id)
-    peer_subscribed = peer_subscribed[0]['subscribed']
+    peer_subscribed = await DB.is_peer_subscribed(peer_id)
 
     while peer_subscribed:
-        peer_subscribed = await conn.fetch(sql_queries.is_peer_subscribed, peer_id)
-        peer_subscribed = peer_subscribed[0]['subscribed']
+        peer_subscribed = await DB.is_peer_subscribed(peer_id)
 
         while datetime.now().minute != 0:
             await asyncio.sleep(0)
 
-        URL = await conn.fetch(sql_queries.select_peer_url, peer_id)
-        URL = URL[0]['url']
-
-        group = await conn.fetch(sql_queries.select_peer_group, peer_id)
-        group = group[0]['peer_group']
+        URL = await DB.select_url(peer_id)
+        group = await DB.select_group(peer_id)
 
         uploaded_screenshot = await take_screenshot(URL, group)
 
@@ -116,23 +111,18 @@ async def send_schedule_n_times_a_day(peer_id: int, amount: int):
     four_times_range = ('06:00', '12:00', '16:00', '20:00')
     five_times_range = ('06:00', '12:00', '15:00', '18:00', '21:00')
 
-    peer_subscribed = await conn.fetch(sql_queries.is_peer_subscribed, peer_id)
-    peer_subscribed = peer_subscribed[0]['subscribed']
+    peer_subscribed = await DB.is_peer_subscribed(peer_id)
 
     match amount:
         case 2:
             while peer_subscribed:
-                peer_subscribed = await conn.fetch(sql_queries.is_peer_subscribed, peer_id)
-                peer_subscribed = peer_subscribed[0]['subscribed']
+                peer_subscribed = await DB.is_peer_subscribed(peer_id)
 
                 time_now = datetime.now(time_zone).strftime('%H:%M')
 
                 if time_now in two_times_range:
-                    URL = await conn.fetch(sql_queries.select_peer_url, peer_id)
-                    URL = URL[0]['url']
-
-                    group = await conn.fetch(sql_queries.select_peer_group, peer_id)
-                    group = group[0]['peer_group']
+                    URL = await DB.select_url(peer_id)
+                    group = await DB.select_group(peer_id)
 
                     uploaded_screenshot = await take_screenshot(URL, group)
 
@@ -147,17 +137,13 @@ async def send_schedule_n_times_a_day(peer_id: int, amount: int):
             logger.info(f'{peer_id} unsubscribed')
         case 3:
             while peer_subscribed:
-                peer_subscribed = await conn.fetch(sql_queries.is_peer_subscribed, peer_id)
-                peer_subscribed = peer_subscribed[0]['subscribed']
+                peer_subscribed = await DB.is_peer_subscribed(peer_id)
 
                 time_now = datetime.now(time_zone).strftime('%H:%M')
 
                 if time_now in three_times_range:
-                    URL = await conn.fetch(sql_queries.select_peer_url, peer_id)
-                    URL = URL[0]['url']
-
-                    group = await conn.fetch(sql_queries.select_peer_group, peer_id)
-                    group = group[0]['peer_group']
+                    URL = await DB.select_url(peer_id)
+                    group = await DB.select_group(peer_id)
 
                     uploaded_screenshot = await take_screenshot(URL, group)
 
@@ -172,17 +158,13 @@ async def send_schedule_n_times_a_day(peer_id: int, amount: int):
             logger.info(f'{peer_id} unsubscribed')
         case 4:
             while peer_subscribed:
-                peer_subscribed = await conn.fetch(sql_queries.is_peer_subscribed, peer_id)
-                peer_subscribed = peer_subscribed[0]['subscribed']
+                peer_subscribed = await DB.is_peer_subscribed(peer_id)
 
                 time_now = datetime.now(time_zone).strftime('%H:%M')
 
                 if time_now in four_times_range:
-                    URL = await conn.fetch(sql_queries.select_peer_url, peer_id)
-                    URL = URL[0]['url']
-
-                    group = await conn.fetch(sql_queries.select_peer_group, peer_id)
-                    group = group[0]['peer_group']
+                    URL = await DB.select_url(peer_id)
+                    group = await DB.select_group(peer_id)
 
                     uploaded_screenshot = await take_screenshot(URL, group)
 
@@ -197,17 +179,13 @@ async def send_schedule_n_times_a_day(peer_id: int, amount: int):
             logger.info(f'{peer_id} unsubscribed')
         case 5:
             while peer_subscribed:
-                peer_subscribed = await conn.fetch(sql_queries.is_peer_subscribed, peer_id)
-                peer_subscribed = peer_subscribed[0]['subscribed']
+                peer_subscribed = await DB.is_peer_subscribed(peer_id)
 
                 time_now = datetime.now(time_zone).strftime('%H:%M')
 
                 if time_now in five_times_range:
-                    URL = await conn.fetch(sql_queries.select_peer_url, peer_id)
-                    URL = URL[0]['url']
-
-                    group = await conn.fetch(sql_queries.select_peer_group, peer_id)
-                    group = group[0]['peer_group']
+                    URL = await DB.select_url(peer_id)
+                    group = await DB.select_group(peer_id)
 
                     uploaded_screenshot = await take_screenshot(URL, group)
 
@@ -226,25 +204,19 @@ async def send_schedule_n_times_a_day(peer_id: int, amount: int):
 async def send_schedule_on_change(peer_id: int):
     logger.success(f'Send schedule on change for {peer_id} was started')
 
-    URL = await conn.fetch(sql_queries.select_peer_url, peer_id)
-    URL = URL[0]['url']
+    URL = await DB.select_url(peer_id)
 
     async with AiohttpClient() as session:
         html = await session.request_text(URL)
     first_html = r''.join(html)
 
-    peer_subscribed = await conn.fetch(sql_queries.is_peer_subscribed, peer_id)
-    peer_subscribed = peer_subscribed[0]['subscribed']
+    peer_subscribed = await DB.is_peer_subscribed(peer_id)
 
     while peer_subscribed:
-        peer_subscribed = await conn.fetch(sql_queries.is_peer_subscribed, peer_id)
-        peer_subscribed = peer_subscribed[0]['subscribed']
+        peer_subscribed = await DB.is_peer_subscribed(peer_id)
 
-        URL = await conn.fetch(sql_queries.select_peer_url, peer_id)
-        URL = URL[0]['url']
-
-        group = await conn.fetch(sql_queries.select_peer_group, peer_id)
-        group = group[0]['peer_group']
+        URL = await DB.select_url(peer_id)
+        group = await DB.select_group(peer_id)
 
         async with AiohttpClient() as session:
             html = await session.request_text(URL)
@@ -277,13 +249,16 @@ async def set_group_public(message: Message, raw_group: str):
     group = group_and_url.get('group')
     URL = group_and_url.get('URL')
 
-    peer_already_exists = await conn.fetch(sql_queries.is_peer_in_db, message.peer_id)
-    peer_already_exists = peer_already_exists[0]['exists']
+    peer_already_exists = await DB.is_peer_in_db(message.peer_id)
 
     if peer_already_exists:
-        await conn.fetch(sql_queries.update_existed_peer, group, URL, message.peer_id)
+        await DB.update_existed_peer(peer_id=message.peer_id,
+                                     peer_group=group,
+                                     url=URL)
     else:
-        await conn.fetch(sql_queries.add_new_peer, message.peer_id, group, URL)
+        await DB.add_new_peer(peer_id=message.peer_id,
+                              peer_group=group,
+                              url=URL)
 
     await message.reply(msg_templates.set_group_chat_success.format(group=group))
 
@@ -306,34 +281,32 @@ async def set_group_private(message: Message, raw_group: str):
     group = group_and_url.get('group')
     URL = group_and_url.get('URL')
 
-    peer_already_exists = await conn.fetch(sql_queries.is_peer_in_db, message.peer_id)
-    peer_already_exists = peer_already_exists[0]['exists']
+    peer_already_exists = await DB.is_peer_in_db(message.peer_id)
 
     if peer_already_exists:
-        await conn.fetch(sql_queries.update_existed_peer, group, URL, message.peer_id)
+        await DB.update_existed_peer(peer_id=message.peer_id,
+                                     peer_group=group,
+                                     url=URL)
     else:
-        await conn.fetch(sql_queries.add_new_peer, message.peer_id, group, URL)
+        await DB.add_new_peer(peer_id=message.peer_id,
+                              peer_group=group,
+                              url=URL)
 
-    await message.reply(msg_templates.set_group_private_success.format(peer_id=message.peer_id,
+    await message.reply(msg_templates.set_group_private_success.format(user_id=message.peer_id,
                                                                        group=group))
-
     await message.answer(msg_templates.set_group_success2,
                          keyboard=schedule_keyboards.GetScheduleKeyboard)
 
 
 @bot.on.message(text='/расписание')
 async def show_schedule(message: Message):
-    peer_in_db = await conn.fetch(sql_queries.is_peer_in_db, message.peer_id)
-    peer_in_db = peer_in_db[0]['exists']
+    peer_in_db = await DB.is_peer_in_db(message.peer_id)
 
     if not peer_in_db:
         await message.reply(msg_templates.group_not_set_message)
     else:
-        URL = await conn.fetch(sql_queries.select_peer_url, message.peer_id)
-        URL = URL[0]['url']
-
-        group = await conn.fetch(sql_queries.select_peer_group, message.peer_id)
-        group = group[0]['peer_group']
+        URL = await DB.select_url(message.peer_id)
+        group = await DB.select_group(message.peer_id)
 
         uploaded_screenshot = await take_screenshot(URL, group)
 
@@ -341,45 +314,78 @@ async def show_schedule(message: Message):
                              keyboard=schedule_keyboards.GetScheduleKeyboard)
 
 
-@bot.on.message(text='/рассылка <digit>')
-async def subscribe_to_first_method(message: Message, digit: str):
-    if digit.isdigit():
-        n = int(digit)
-        if not 100 > n > 0:
-            await message.reply(msg_templates.incorrect_number_range)
-        else:
-            peer_in_db = await conn.fetch(sql_queries.is_peer_in_db, message.peer_id)
-            peer_in_db = peer_in_db[0]['exists']
-            if not peer_in_db:
-                await message.reply(msg_templates.group_not_set_message)
-            else:
-                peer_subscribed = await conn.fetch(sql_queries.is_peer_subscribed, message.peer_id)
-                peer_subscribed = peer_subscribed[0]['subscribed']
+@bot.on.chat_message(text='/рассылка <digit>')
+async def subscribe_to_first_method_public(message: Message, digit: str):
+    if not digit.isdigit():
+        return await message.reply(msg_templates.incorrect_number)
 
-                if peer_subscribed:
-                    await message.reply(msg_templates.already_subscribed_message)
-                else:
-                    await conn.fetch(sql_queries.set_peer_method, 'every_n_hours', message.peer_id)
-                    await conn.fetch(sql_queries.set_peer_hours, n, message.peer_id)
-                    await conn.fetch(sql_queries.set_peer_subscribe_state, True, message.peer_id)
+    n = int(digit)
 
-                    await message.reply(msg_templates.subscription_successful,
-                                        keyboard=schedule_keyboards.GetScheduleKeyboard)
+    if not 100 > n > 0:
+        return await message.reply(msg_templates.incorrect_number_range)
 
-                scheduler.add_job(send_schedule_every_n_hours,
-                                  args=(message.peer_id, n))
-    else:
-        await message.reply(msg_templates.incorrect_number)
+    peer_in_db = await DB.is_peer_in_db(message.peer_id)
+
+    if not peer_in_db:
+        return await message.reply(msg_templates.group_not_set_message)
+
+    peer_subscribed = await DB.is_peer_subscribed(message.peer_id)
+
+    if peer_subscribed:
+        return await message.reply(msg_templates.already_subscribed_message)
+
+    await DB.set_peer_method(peer_id=message.peer_id, method='every_n_hours')
+    await DB.set_peer_hours(peer_id=message.peer_id, hours=n)
+    await DB.set_peer_subscribe_state(peer_id=message.peer_id, subscribed=True)
+
+    await message.reply(msg_templates.subscription_successful,
+                        keyboard=schedule_keyboards.GetScheduleKeyboard)
+
+    scheduler.add_job(send_schedule_every_n_hours,
+                      args=(message.peer_id, n))
+
+
+@bot.on.private_message(state=ScheduleStates.WAITING_A_NUMBER)
+async def subscribe_to_first_method_private(message: Message):
+    if not message.text.isdigit():
+        return await message.reply(msg_templates.incorrect_number)
+
+    n = int(message.text)
+
+    if not 100 > n > 0:
+        return await message.reply(msg_templates.incorrect_number_range)
+
+    peer_in_db = await DB.is_peer_in_db(message.peer_id)
+
+    if not peer_in_db:
+        await bot.state_dispenser.delete(message.peer_id)
+        return await message.reply(msg_templates.group_not_set_message)
+
+    peer_subscribed = await DB.is_peer_subscribed(message.peer_id)
+
+    if peer_subscribed:
+        await bot.state_dispenser.delete(message.peer_id)
+        return await message.reply(msg_templates.already_subscribed_message)
+
+    await DB.set_peer_method(peer_id=message.peer_id, method='every_n_hours')
+    await DB.set_peer_hours(peer_id=message.peer_id, hours=n)
+    await DB.set_peer_subscribe_state(peer_id=message.peer_id, subscribed=True)
+
+    await message.reply(msg_templates.subscription_successful,
+                        keyboard=schedule_keyboards.GetScheduleKeyboard)
+
+    await bot.state_dispenser.delete(message.peer_id)
+
+    scheduler.add_job(send_schedule_every_n_hours,
+                      args=(message.peer_id, n))
 
 
 @bot.on.message(text='/подписка')
 async def subscription_types(message: Message):
-    peer_in_db = await conn.fetch(sql_queries.is_peer_in_db, message.peer_id)
-    peer_in_db = peer_in_db[0]['exists']
+    peer_in_db = await DB.is_peer_in_db(message.peer_id)
 
     if peer_in_db:
-        peer_subscribed = await conn.fetch(sql_queries.is_peer_subscribed, message.peer_id)
-        peer_subscribed = peer_subscribed[0]['subscribed']
+        peer_subscribed = await DB.is_peer_subscribed(message.peer_id)
 
         if not peer_subscribed:
             await message.reply(msg_templates.choose_subscription_message,
@@ -392,40 +398,44 @@ async def subscription_types(message: Message):
 
 @bot.on.message(text='/отписаться')
 async def unsubscribe(message: Message):
-    peer_in_db = await conn.fetch(sql_queries.is_peer_in_db, message.peer_id)
-    peer_in_db = peer_in_db[0]['exists']
+    peer_in_db = await DB.is_peer_in_db(message.peer_id)
 
     if not peer_in_db:
         await message.reply(msg_templates.group_not_set_message)
     else:
-        peer_subscribed = await conn.fetch(sql_queries.is_peer_subscribed, message.peer_id)
-        peer_subscribed = peer_subscribed[0]['subscribed']
+        peer_subscribed = await DB.is_peer_subscribed(message.peer_id)
 
         if not peer_subscribed:
             await message.reply(msg_templates.not_subscribed_error)
         else:
-            await conn.fetch(sql_queries.set_peer_subscribe_state, False, message.peer_id)
+            await DB.set_peer_subscribe_state(peer_id=message.peer_id, subscribed=False)
 
             await message.reply(msg_templates.unsubscription_successful,
                                 keyboard=schedule_keyboards.GetScheduleKeyboard)
 
 
-@bot.on.message(payload={"command": "every_n_hours"})
-async def every_n_hours_payload(message: Message):
-    await message.reply(msg_templates.every_n_hours_method_template)
+@bot.on.chat_message(payload={"command": "every_n_hours"})
+async def every_n_hours_payload_public(message: Message):
+    return await message.reply(msg_templates.every_n_hours_method_template_private)
+
+
+@bot.on.private_message(payload={"command": "every_n_hours"})
+async def every_n_hours_payload_private(message: Message):
+    await bot.state_dispenser.set(message.peer_id, ScheduleStates.WAITING_A_NUMBER)
+    return await message.reply(msg_templates.every_n_hours_method_template_public)
 
 
 @bot.on.message(payload={"command": "n_times"})
 async def n_times_payload(message: Message):
-    await message.reply(msg_templates.choose_subscription_message,
-                        keyboard=schedule_keyboards.AmountVariantsKeyboard)
+    return await message.reply(msg_templates.choose_subscription_message,
+                               keyboard=schedule_keyboards.AmountVariantsKeyboard)
 
 
 @bot.on.message(payload={"command": "two_times"})
 async def two_times_payload(message: Message):
-    await conn.fetch(sql_queries.set_peer_method, 'n_times_a_day', message.peer_id)
-    await conn.fetch(sql_queries.set_peer_amount, 2, message.peer_id)
-    await conn.fetch(sql_queries.set_peer_subscribe_state, True, message.peer_id)
+    await DB.set_peer_method(peer_id=message.peer_id, method='every_n_hours')
+    await DB.set_peer_amount(peer_id=message.peer_id, amount=2)
+    await DB.set_peer_subscribe_state(peer_id=message.peer_id, subscribed=True)
 
     await message.reply(msg_templates.subscribed_to_2_times,
                         keyboard=schedule_keyboards.GetScheduleKeyboard)
@@ -436,9 +446,9 @@ async def two_times_payload(message: Message):
 
 @bot.on.message(payload={"command": "three_times"})
 async def three_times_payload(message: Message):
-    await conn.fetch(sql_queries.set_peer_method, 'n_times_a_day', message.peer_id)
-    await conn.fetch(sql_queries.set_peer_amount, 3, message.peer_id)
-    await conn.fetch(sql_queries.set_peer_subscribe_state, True, message.peer_id)
+    await DB.set_peer_method(peer_id=message.peer_id, method='every_n_hours')
+    await DB.set_peer_amount(peer_id=message.peer_id, amount=3)
+    await DB.set_peer_subscribe_state(peer_id=message.peer_id, subscribed=True)
 
     await message.reply(msg_templates.subscribed_to_3_times,
                         keyboard=schedule_keyboards.GetScheduleKeyboard)
@@ -449,9 +459,9 @@ async def three_times_payload(message: Message):
 
 @bot.on.message(payload={"command": "four_times"})
 async def four_times_payload(message: Message):
-    await conn.fetch(sql_queries.set_peer_method, 'n_times_a_day', message.peer_id)
-    await conn.fetch(sql_queries.set_peer_amount, 4, message.peer_id)
-    await conn.fetch(sql_queries.set_peer_subscribe_state, True, message.peer_id)
+    await DB.set_peer_method(peer_id=message.peer_id, method='every_n_hours')
+    await DB.set_peer_amount(peer_id=message.peer_id, amount=4)
+    await DB.set_peer_subscribe_state(peer_id=message.peer_id, subscribed=True)
 
     await message.reply(msg_templates.subscribed_to_4_times,
                         keyboard=schedule_keyboards.GetScheduleKeyboard)
@@ -462,9 +472,9 @@ async def four_times_payload(message: Message):
 
 @bot.on.message(payload={"command": "five_times"})
 async def five_times_payload(message: Message):
-    await conn.fetch(sql_queries.set_peer_method, 'n_times_a_day', message.peer_id)
-    await conn.fetch(sql_queries.set_peer_amount, 5, message.peer_id)
-    await conn.fetch(sql_queries.set_peer_subscribe_state, True, message.peer_id)
+    await DB.set_peer_method(peer_id=message.peer_id, method='every_n_hours')
+    await DB.set_peer_amount(peer_id=message.peer_id, amount=5)
+    await DB.set_peer_subscribe_state(peer_id=message.peer_id, subscribed=True)
 
     await message.reply(msg_templates.subscribed_to_5_times,
                         keyboard=schedule_keyboards.GetScheduleKeyboard)
@@ -475,8 +485,9 @@ async def five_times_payload(message: Message):
 
 @bot.on.message(payload={"command": "on_change"})
 async def on_change_payload(message: Message):
-    await conn.fetch(sql_queries.set_peer_method, 'on_change', message.peer_id)
-    await conn.fetch(sql_queries.set_peer_subscribe_state, True, message.peer_id)
+    await DB.set_peer_method(peer_id=message.peer_id, method='on_change')
+    await DB.set_peer_subscribe_state(peer_id=message.peer_id, subscribed=True)
+
     await message.reply(msg_templates.on_change_method_subscribed,
                         keyboard=schedule_keyboards.GetScheduleKeyboard)
 
@@ -485,11 +496,8 @@ async def on_change_payload(message: Message):
 
 @bot.on.message(payload={"command": "get_schedule"})
 async def get_schedule_payload(message: Message):
-    URL = await conn.fetch(sql_queries.select_peer_url, message.peer_id)
-    URL = URL[0]['url']
-
-    group = await conn.fetch(sql_queries.select_peer_group, message.peer_id)
-    group = group[0]['peer_group']
+    URL = await DB.select_url(message.peer_id)
+    group = await DB.select_group(message.peer_id)
 
     uploaded_screenshot = await take_screenshot(URL, group)
 
@@ -553,23 +561,20 @@ async def set_group_status_online():
 
 
 async def load_tasks_from_db_on_startup():
-    subscribed_peers = await conn.fetch(sql_queries.select_subscribed_peers)
+    subscribed_peers = await DB.select_subscribed_peers()
 
     for peer in subscribed_peers:
         peer_id = peer['peer_id']
-        method = await conn.fetch(sql_queries.select_peer_method, peer_id)
-        method = method[0]['method']
+        method = await DB.select_method(peer_id)
 
         match method:
             case 'every_n_hours':
-                hours = await conn.fetch(sql_queries.select_peer_hours, peer_id)
-                hours = hours[0]['hours']
+                hours = await DB.select_hours(peer_id)
 
                 scheduler.add_job(send_schedule_every_n_hours,
                                   args=(peer_id, hours))
             case 'n_times_a_day':
-                amount = await conn.fetch(sql_queries.select_peer_amount, peer_id)
-                amount = amount[0]['amount']
+                amount = await DB.select_amount(peer_id)
 
                 scheduler.add_job(send_schedule_n_times_a_day,
                                   args=(peer_id, amount))
@@ -581,11 +586,11 @@ async def load_tasks_from_db_on_startup():
 
 async def run_db_connect_on_startup():
     global conn
+    global DB
 
-    conn = await asyncpg.create_pool(user=db_user, password=db_password,
-                                     database=db, host=db_host)
-
-    await conn.fetch(sql_queries.create_table_if_not_exist)
+    conn = await asyncpg.create_pool(**db_credentials)
+    DB = MNOKOL_DB(conn)
+    await DB.create_table_if_not_exists()
 
 
 async def on_shutdown():
