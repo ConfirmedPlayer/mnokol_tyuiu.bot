@@ -1,6 +1,6 @@
 create_table_if_not_exist = '''
     CREATE TABLE IF NOT EXISTS peers(
-        peer_id bigint PRIMARY KEY,
+        peer_id integer PRIMARY KEY,
         peer_group varchar(30) NOT NULL,
         url varchar(100) NOT NULL,
         method varchar(20),
