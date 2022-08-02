@@ -530,7 +530,7 @@ async def parse_groups_tags():
     try:
         page = await browser.newPage()
         await page.goto(schedule_menu_url, options=chrome_options.goto_options)
-        await asyncio.sleep(0)
+        await asyncio.sleep(10)
         html = await page.content()
 
         soup = BeautifulSoup(html, 'lxml')
