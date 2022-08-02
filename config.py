@@ -17,4 +17,10 @@ schedule_menu_url = 'http://mnokol.tyuiu.ru/rtsp/index2.php'
 chrome_path = '/usr/bin/google-chrome'
 
 
+db = 'MNOKOL_DB'
+db_user = os.getenv('postgresql_user')
+db_password = os.getenv('postgresql_password')
+db_host = '127.0.0.1'
+
+
 assert group_id > 0
