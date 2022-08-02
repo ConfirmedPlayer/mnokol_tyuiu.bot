@@ -285,7 +285,7 @@ async def set_group_public(message: Message, raw_group: str):
     else:
         await conn.fetch(sql_queries.add_new_peer, message.peer_id, group, URL)
 
-    await message.reply(msg_templates.set_group_chat_success, group)
+    await message.reply(msg_templates.set_group_chat_success.format(group=group))
 
     await message.answer(msg_templates.set_group_success2,
                          keyboard=schedule_keyboards.GetScheduleKeyboard)
@@ -314,7 +314,8 @@ async def set_group_private(message: Message, raw_group: str):
     else:
         await conn.fetch(sql_queries.add_new_peer, message.peer_id, group, URL)
 
-    await message.reply(msg_templates.set_group_private_success, message.peer_id, group)
+    await message.reply(msg_templates.set_group_private_success.format(peer_id=message.peer_id,
+                                                                       group=group))
 
     await message.answer(msg_templates.set_group_success2,
                          keyboard=schedule_keyboards.GetScheduleKeyboard)
